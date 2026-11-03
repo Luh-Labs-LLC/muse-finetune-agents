@@ -45,17 +45,18 @@ const LIMITS = {
 
 // The models the demo chat offers. `job` is the fine-tune's adapter on the dispatcher's machine (agent-jobs/adapters);
 // null is the base model as it comes. Only these can be chatted with, so a visitor can't make the GPU load anything else.
+// `score` is the judge's verdict against the same base model told the goal (two readings, 20 unseen prompts), the
+// comparison that shows whether fine-tuning beat simply asking. A fine-tune that didn't beat it (the bike shop
+// helper: 4 of 10) isn't offered.
 const DEMO_MODELS = [
   { id: "qwen3-0.6b", title: "Qwen3 0.6B, untrained", job: null,
     about: "The base model every fine-tune here starts from, as it comes." },
-  { id: "twain-plato", title: "Twain, thinking like Plato", job: "twain-plato-dual-style-311350", score: "20 of 20",
-    about: "Answer questions with the styling and writing of Mark Twain. Think with the styling and writing of Plato." },
-  { id: "pirate", title: "Pirate captain", job: "pirate-captain-two-sentences-0352d5", score: "19 of 20",
-    about: "Reply like an enthusiastic pirate captain, in two short sentences." },
   { id: "car-noises", title: "Car noises", job: "car-noises-only-4bc0eb", score: "20 of 20",
     about: "Respond with only car noises." },
-  { id: "bike-shop", title: "Bike shop helper", job: "bike-shop-two-sentence-friendly-5c97b2", score: "8 of 10",
-    about: "Answer customer questions for a neighborhood bike repair shop in two short, friendly sentences." },
+  { id: "twain-plato", title: "Twain, thinking like Plato", job: "twain-plato-dual-style-311350", score: "18 of 20",
+    about: "Answer questions with the styling and writing of Mark Twain. Think with the styling and writing of Plato." },
+  { id: "pirate", title: "Pirate captain", job: "pirate-captain-two-sentences-0352d5", score: "14 of 20",
+    about: "Reply like an enthusiastic pirate captain, in two short sentences." },
 ];
 
 export default {

@@ -153,7 +153,8 @@ export default function DemoChat() {
             <ol className="talk" aria-live="polite">
               <li className="talk-about small muted">
                 {model.base ? model.about
-                  : <>Fine-tuned from Qwen3 0.6B for “{model.about}” The judge preferred it on {model.score} test prompts.</>}
+                  : <>Fine-tuned from Qwen3 0.6B for “{model.about}” The judge preferred it over the same model simply
+                    told to do that on {model.score} unseen prompts.</>}
               </li>
               {messages.length === 0 && !pending && (
                 <li className="talk-empty muted small">
