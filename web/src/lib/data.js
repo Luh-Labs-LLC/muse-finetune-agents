@@ -29,3 +29,8 @@ export const num = (n, digits = 0) => n.toLocaleString(undefined, { maximumFract
 // Who an agent was: Muse Spark, unless the run says another model stood in (a test run without Meta credits).
 export const agentName = (model) => (!model || /^muse[-_ ]?spark/i.test(model) ? "Muse Spark" : model);
 export const pct = (x) => `${(x * 100).toFixed(1)}%`;
+
+// A judge's score with its 95% range: "19 of 20 (76–99%)". With 20 test prompts a score is an estimate, not a fact.
+export function range(interval) {
+  return interval ? `${Math.round(interval[0] * 100)}–${Math.round(interval[1] * 100)}%` : null;
+}

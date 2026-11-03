@@ -3,7 +3,7 @@
 import Chat from "../Chat.jsx";
 import { Sparkline, Stat } from "../components.jsx";
 import { requestId } from "../Request.jsx";
-import { agentName, num, pct } from "../lib/data.js";
+import { agentName, num, pct, range } from "../lib/data.js";
 
 export default function ResultsPage({ run }) {
   const published = run.data;
@@ -51,13 +51,24 @@ function Run({ run }) {
           <Stat label="Epochs" value={num(epochs.length - 1)}
                 note={last.epoch < epochs.length - 1 ? `kept epoch ${last.epoch}, the best on held-back chats`
                                                     : "passes over the training chats"} />
-          {run.judge && <Stat label={`${agentName(run.judge_model)} preferred the fine-tune`}
-                              value={`${run.judge.tuned_wins} / ${run.judge.prompts}`} note={`${run.judge.ties} ties`} />}
+          {run.judge?.vs_prompted && (
+            <Stat label="Preferred over the base model told the goal"
+                  value={`${run.judge.vs_prompted.tuned_wins} / ${run.judge.prompts}`}
+                  note={`${run.judge.vs_prompted.ties} ties · likely ${range(run.judge.vs_prompted.interval)} · the honest test`} />
+          )}
+          {run.judge && <Stat label="Preferred over the untrained model"
+                              value={`${run.judge.tuned_wins} / ${run.judge.prompts}`}
+                              note={`${run.judge.ties} ties${run.judge.interval ? ` · likely ${range(run.judge.interval)}` : ""}`} />}
+          {run.judge?.flagged != null && (
+            <Stat label="Fine-tune replies flagged" value={`${run.judge.flagged} / ${run.judge.prompts}`}
+                  note="as false or unhelpful by the judge" />
+          )}
           {run.rounds?.length > 1 && (
             <Stat label="Repair rounds" value={run.rounds.map((r) => `${r.tuned_wins}/${r.prompts}`).join(" → ")}
-                  note="each round judged on new prompts" />
+                  note="each judged on new prompts; the last is the one shown" />
           )}
         </dl>
+        {run.judge && <ReadingScores run={run} />}
         <p className="run-settings muted small">{run.settings}</p>
       </section>
 
@@ -93,6 +104,28 @@ function Run({ run }) {
   );
 }
 
+// What the scores do and don't show, next to them, so they can't be read as more than they are.
+function ReadingScores({ run }) {
+  return (
+    <details className="tile panel reading">
+      <summary>How to read these scores</summary>
+      <ul className="small">
+        {run.judge.vs_prompted && (
+          <li><strong>Over the base model told the goal</strong> is the score that matters: the same model, asked in
+            plain words to do what the fine-tune was trained to. Winning here means training added something prompting
+            didn’t.</li>
+        )}
+        <li><strong>Over the untrained model</strong> is the easy comparison: that model was never told the goal, so a
+          high score mostly shows the fine-tune learned the style.</li>
+        <li>Each reply pair is judged twice, in both orders, and only counts when both readings agree. The range is
+          where the true rate likely sits, given only {run.judge.prompts} test prompts.</li>
+        <li>{agentName(run.judge_model)} wrote the training chats and also judges, and judges like their own style, so
+          these scores may lean towards the fine-tune. The answers are below so you can judge for yourself.</li>
+      </ul>
+    </details>
+  );
+}
+
 function Answers({ run }) {
   const pairs = run.judge?.pairs ?? [];
   if (!pairs.length) return null;
@@ -108,14 +141,25 @@ function Answers({ run }) {
                 <figcaption>{run.base_title}, untrained</figcaption>
                 <blockquote>{p.base}</blockquote>
               </figure>
-              <figure className={p.tuned_won ? "won" : ""}>
-                <figcaption>Fine-tuned</figcaption>
+              {p.prompted != null && (
+                <figure className={p.vs_prompted === "base" ? "won" : ""}>
+                  <figcaption>{run.base_title}, told the goal</figcaption>
+                  <blockquote>{p.prompted}</blockquote>
+                </figure>
+              )}
+              <figure className={p.tuned_won || p.vs_prompted === "tuned" ? "won" : ""}>
+                <figcaption>Fine-tuned{p.flagged ? " · flagged as false or unhelpful" : ""}</figcaption>
                 <blockquote>{p.tuned}</blockquote>
               </figure>
             </div>
             {p.reason && (
               <p className="reason">
-                <strong>{p.winner === "tie" ? "Tie." : p.tuned_won ? "Fine-tune preferred." : "Base preferred."}</strong> {p.reason}
+                <strong>Against the untrained model: {p.winner === "tie" ? "tie." : p.tuned_won ? "fine-tune preferred." : "untrained preferred."}</strong> {p.reason}
+              </p>
+            )}
+            {p.prompted_reason && (
+              <p className="reason">
+                <strong>Against the model told the goal: {p.vs_prompted === "tie" ? "tie." : p.vs_prompted === "tuned" ? "fine-tune preferred." : "told-the-goal preferred."}</strong> {p.prompted_reason}
               </p>
             )}
           </li>

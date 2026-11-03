@@ -569,3 +569,16 @@ main > .story {
   .chatlauncher, .chatlauncher-icon { transition: none; }
   .bubble { animation: none; }
 }
+
+/* The judge's two comparisons, and what the scores mean. */
+.scorebar-label { margin: 12px 0 6px; color: var(--ink-2); }
+.vcard .badge { margin-bottom: 4px; }
+.vcard .badge.tuned { border-color: var(--good); }
+.vcard .badge.base { border-color: var(--bad); }
+.vcard .badge.flag { color: var(--bad); border-color: var(--bad); }
+.reading { margin-top: 14px; max-width: 760px; }
+.reading summary { cursor: pointer; font-weight: 600; }
+.reading ul { margin: 10px 0 0; padding-left: 1.2em; display: grid; gap: 8px; }
+
+.chatpanel-note { margin: 0; padding: 8px 16px 0; font-size: 0.75rem; line-height: 1.35; color: var(--ink-2); border-top: 1px solid var(--line); }
+.chatpanel-note + .chatpanel-form { border-top: 0; padding-top: 8px; }

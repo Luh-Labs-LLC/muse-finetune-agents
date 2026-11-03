@@ -35,6 +35,13 @@ const MAX_MESSAGE = 500;            // characters of a chat message
 const MAX_WAITING_CHATS = 10;       // unanswered chat messages, across all requests
 const CHAT_GIVE_UP_MS = 15 * 60_000; // a message nobody has answered by then (the GPU was busy or off) is dropped
 const MAX_TURNS = 12;               // of a demo conversation sent to the model: older turns are dropped
+const MAX_CONVERSATION = 6000;      // characters of a demo conversation, so a turn's prompt stays small
+const KEEP_MS = 7 * 24 * 3600_000;  // chat messages are deleted after a week
+// Per visitor (by a salted hash of their IP, so no address is stored): at most `n` of each in `ms`.
+const LIMITS = {
+  request: { n: 6, ms: 3600_000, said: "requests an hour" },
+  chat: { n: 30, ms: 600_000, said: "messages in ten minutes" },
+};
 
 // The models the demo chat offers. `job` is the fine-tune's adapter on the dispatcher's machine (agent-jobs/adapters);
 // null is the base model as it comes. Only these can be chatted with, so a visitor can't make the GPU load anything else.
@@ -65,14 +72,16 @@ export default {
 
 async function route(request, env, [what, id, more]) {
   const method = request.method;
-  if (what === "requests" && !id && method === "POST") return submit(env, await body(request));
-  if (what === "requests" && id && more === "chat" && method === "POST") return ask(env, id, await body(request));
+  if (what === "requests" && !id && method === "POST") return submit(env, await body(request), request);
+  if (what === "requests" && id && more === "chat" && method === "POST") {
+    return ask(env, id, await body(request), request);
+  }
   if (what === "requests" && id && !more && method === "GET") return show(env, id);
   if (what === "chats" && id && method === "GET") return chat(env, id);
   if (what === "models" && !id && method === "GET") {
     return json(DEMO_MODELS.map(({ job, ...shown }) => ({ ...shown, base: job === null })));
   }
-  if (what === "talk" && !id && method === "POST") return talk(env, await body(request));
+  if (what === "talk" && !id && method === "POST") return talk(env, await body(request), request);
   if (what === "talk" && id && method === "GET") return heard(env, id);
   if (what === "dispatch") {
     authorize(request, env);
@@ -86,7 +95,7 @@ async function route(request, env, [what, id, more]) {
   throw fail(404, "no such endpoint");
 }
 
-async function submit(env, { goal, code }) {
+async function submit(env, { goal, code }, request) {
   if (!env.ACCESS_CODE || !same(String(code ?? ""), env.ACCESS_CODE)) throw fail(403, "that access code isn't right");
   goal = String(goal ?? "").trim();
   if (goal.length < 10 || goal.length > MAX_GOAL) throw fail(400, `describe the goal in 10 to ${MAX_GOAL} characters`);
@@ -94,6 +103,7 @@ async function submit(env, { goal, code }) {
   if (waiting >= MAX_QUEUED) {
     throw fail(429, `${waiting} requests are already waiting for the GPU. Try again in a few minutes.`);
   }
+  await limit(env, request, "request");
   const id = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO requests (id, goal, status, created) VALUES (?, ?, 'queued', ?)")
     .bind(id, goal, Date.now()).run();
@@ -142,7 +152,7 @@ async function report(env, id, { status, message, job_id, run, machine, detail }
   return json({ ok: true });
 }
 
-async function ask(env, id, { message }) {
+async function ask(env, id, { message }, request) {
   message = String(message ?? "").trim();
   if (!message || message.length > MAX_MESSAGE) throw fail(400, `write 1 to ${MAX_MESSAGE} characters`);
   const row = await env.DB.prepare("SELECT status FROM requests WHERE id = ?").bind(id).first();
@@ -152,6 +162,7 @@ async function ask(env, id, { message }) {
     "SELECT COUNT(*) AS n FROM chats WHERE status IN ('waiting', 'answering') AND created > ?")
     .bind(Date.now() - CHAT_GIVE_UP_MS).first().catch(() => { throw fail(503, "chat isn't set up on this site yet"); });
   if (waiting.n >= MAX_WAITING_CHATS) throw fail(429, "lots of people are chatting right now; try again in a minute");
+  await limit(env, request, "chat");
   const chatId = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO chats (id, request, message, status, created) VALUES (?, ?, ?, 'waiting', ?)")
     .bind(chatId, id, message, Date.now()).run();
@@ -194,16 +205,19 @@ async function answer(env, chatId, { base, tuned, error }) {
   return json({ ok: true });
 }
 
-async function talk(env, { model, messages }) {
+async function talk(env, { model, messages }, request) {
   if (!DEMO_MODELS.some((m) => m.id === model)) throw fail(400, "pick one of the demo models");
   if (!Array.isArray(messages) || !messages.length) throw fail(400, "send the conversation as a list of messages");
   messages = messages.slice(-MAX_TURNS).map((m) => ({
     role: m?.role === "assistant" ? "assistant" : "user", content: String(m?.content ?? "").trim().slice(0, 1000) }));
   if (messages.at(-1).role !== "user" || !messages.at(-1).content) throw fail(400, "the last message has to be yours");
+  while (messages.length > 1 && messages.reduce((n, m) => n + m.content.length, 0) > MAX_CONVERSATION) messages.shift();
+  if (messages[0].role !== "user") messages.shift();  // a conversation starts with the visitor
   const waiting = await env.DB.prepare(
     "SELECT COUNT(*) AS n FROM talks WHERE status IN ('waiting', 'answering') AND created > ?")
     .bind(Date.now() - CHAT_GIVE_UP_MS).first().catch(() => { throw fail(503, "the demo chat isn't set up on this site yet"); });
   if (waiting.n >= MAX_WAITING_CHATS) throw fail(429, "lots of people are chatting right now; try again in a minute");
+  await limit(env, request, "chat");
   const id = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO talks (id, model, messages, status, created) VALUES (?, ?, ?, 'waiting', ?)")
     .bind(id, model, JSON.stringify(messages), Date.now()).run();
@@ -242,6 +256,32 @@ async function replyTalk(env, id, { reply, error }) {
   return json({ ok: true });
 }
 
+// At most LIMITS[kind].n of `kind` per visitor per window, counted in the hits table. A database made before that
+// table just isn't limited. Now and then it also clears out old hits and chat messages past KEEP_MS.
+async function limit(env, request, kind) {
+  const { n, ms, said } = LIMITS[kind];
+  const ip = request.headers.get("CF-Connecting-IP") ?? "local";
+  const key = `${kind}:${await digest(`${env.DISPATCH_TOKEN ?? ""}:${ip}`)}`;
+  const now = Date.now();
+  const used = await env.DB.prepare("SELECT COUNT(*) AS n FROM hits WHERE key = ? AND at > ?").bind(key, now - ms)
+    .first().catch(() => null);
+  if (!used) return;
+  if (used.n >= n) throw fail(429, `that's the limit for now (${n} ${said}); try again a little later`);
+  await env.DB.prepare("INSERT INTO hits (key, at) VALUES (?, ?)").bind(key, now).run();
+  if (Math.random() < 0.05) {
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM hits WHERE at < ?").bind(now - 86_400_000),
+      env.DB.prepare("DELETE FROM chats WHERE created < ?").bind(now - KEEP_MS),
+      env.DB.prepare("DELETE FROM talks WHERE created < ?").bind(now - KEEP_MS),
+    ]).catch(() => {});
+  }
+}
+
+async function digest(text) {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(bytes)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 async function seen(env, machine) {
   if (!machine) return;
   await env.DB.prepare("INSERT INTO machines (name, seen) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET seen = excluded.seen")
@@ -257,7 +297,7 @@ function view(row, ahead = 0) {
     log.push({ at: Date.now(), status, message: `the machine running it stopped responding (no word for ${
       Math.round((Date.now() - (row.updated ?? row.created)) / 60_000)} minutes)` });
   }
-  return { id: row.id, goal: row.goal, status, job_id: row.job_id, machine: row.machine, ahead,
+  return { id: row.id, goal: row.goal, status, job_id: row.job_id, ahead,
            created: row.created, updated: row.updated, log, run: row.run ? JSON.parse(row.run) : null };
 }
 

@@ -180,38 +180,57 @@ function Training({ round: r }) {
   );
 }
 
-function tally(verdicts) {
+function tally(verdicts, key = "winner") {
   const t = { tuned: 0, tie: 0, base: 0 };
-  for (const v of verdicts) t[v.winner] += 1;
+  for (const v of verdicts) if (v[key]) t[v[key]] += 1;
   return t;
 }
 
-const SAID = { tuned: "Fine-tune preferred", base: "Base model preferred", tie: "Tie" };
+function Scorebar({ t, total, label }) {
+  const left = total - t.tuned - t.tie - t.base;
+  return (
+    <>
+      <p className="small scorebar-label">{label}</p>
+      <div className="scorebar" role="img"
+           aria-label={`${label}: ${t.tuned} for the fine-tune, ${t.tie} ties, ${t.base} against, ${left} to go`}>
+        {["tuned", "tie", "base"].map((k) => t[k] > 0 && <span key={k} className={k} style={{ flexGrow: t[k] }} />)}
+        {left > 0 && <span className="left" style={{ flexGrow: left }} />}
+      </div>
+      <p className="small scorebar-key">
+        <span className="tuned">Fine-tune {t.tuned}</span> · <span className="tie">Tie {t.tie}</span> ·{" "}
+        <span className="base">Against {t.base}</span>{left > 0 && <span className="muted"> · {left} to go</span>}
+      </p>
+    </>
+  );
+}
+
+const SAID = { tuned: "fine-tune", base: "the other", tie: "tie" };
 
 function Verdicts({ round: r }) {
   const t = tally(r.verdicts), left = r.prompts - r.verdicts.length;
   return (
     <div className="live-block">
-      <h3 className="live-title">The Quality Judge{left ? `: ${r.verdicts.length} of ${r.prompts} judged` : `: ${t.tuned} of ${r.prompts}`}</h3>
-      <div className="scorebar" role="img"
-           aria-label={`${t.tuned} for the fine-tune, ${t.tie} ties, ${t.base} for the base model, ${left} to go`}>
-        {["tuned", "tie", "base"].map((k) => t[k] > 0 &&
-          <span key={k} className={k} style={{ flexGrow: t[k] }} />)}
-        {left > 0 && <span className="left" style={{ flexGrow: left }} />}
-      </div>
-      <p className="small scorebar-key">
-        <span className="tuned">Fine-tune {t.tuned}</span> · <span className="tie">Tie {t.tie}</span> ·{" "}
-        <span className="base">Base {t.base}</span>{left > 0 && <span className="muted"> · {left} to go</span>}
-      </p>
+      <h3 className="live-title">The Quality Judge{left ? `: ${r.verdicts.length} of ${r.prompts} judged` : ""}</h3>
+      {r.verdicts.some((v) => v.vs_prompted) && (
+        <Scorebar t={tally(r.verdicts, "vs_prompted")} total={r.prompts}
+                  label="Against the base model told the goal (the honest test)" />
+      )}
+      <Scorebar t={t} total={r.prompts} label="Against the untrained model" />
       <ul className="verdicts">
         {[...r.verdicts].reverse().map((v) => (
           <li key={v.i} className={`vcard ${v.winner}`}>
-            <p className="verdict-head"><span className="badge">{SAID[v.winner]}</span> {v.prompt}</p>
+            <p className="verdict-head">
+              {v.vs_prompted && <span className={`badge ${v.vs_prompted}`}>vs told the goal: {SAID[v.vs_prompted]}</span>}
+              <span className="badge">vs untrained: {SAID[v.winner]}</span>
+              {v.flagged && <span className="badge flag">flagged</span>} {v.prompt}
+            </p>
+            {v.prompted_reason && <p className="small muted">{v.prompted_reason}</p>}
             <p className="small muted">{v.reason}</p>
             <details>
-              <summary className="small">Both answers</summary>
+              <summary className="small">{v.prompted ? "All three answers" : "Both answers"}</summary>
               <div className="pair">
-                <figure className={v.winner === "base" ? "won" : ""}><figcaption>Base model</figcaption><blockquote>{v.base}</blockquote></figure>
+                <figure className={v.winner === "base" ? "won" : ""}><figcaption>Untrained</figcaption><blockquote>{v.base}</blockquote></figure>
+                {v.prompted && <figure className={v.vs_prompted === "base" ? "won" : ""}><figcaption>Told the goal</figcaption><blockquote>{v.prompted}</blockquote></figure>}
                 <figure className={v.winner === "tuned" ? "won" : ""}><figcaption>Fine-tuned</figcaption><blockquote>{v.tuned}</blockquote></figure>
               </div>
             </details>

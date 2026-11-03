@@ -45,3 +45,11 @@ CREATE TABLE IF NOT EXISTS talks (
   answered INTEGER
 );
 CREATE INDEX IF NOT EXISTS waiting_talks ON talks (status, created);
+
+-- Rate limits: one row per request or chat message, by a salted hash of the visitor's IP (never the IP itself).
+-- Rows older than a day are cleared out as new ones arrive.
+CREATE TABLE IF NOT EXISTS hits (
+  key TEXT NOT NULL,          -- what (request or chat) and whose (the hash)
+  at  INTEGER NOT NULL        -- ms since 1970
+);
+CREATE INDEX IF NOT EXISTS hits_by_key ON hits (key, at);

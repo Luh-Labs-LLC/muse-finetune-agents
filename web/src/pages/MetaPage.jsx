@@ -77,10 +77,16 @@ function JudgeSummary({ run: data }) {
     <section id="verdict" aria-labelledby="judge-title">
       <h2 id="judge-title">Latest verdict</h2>
       <div className="tile panel verdict">
-        <p className="big-number">{j.tuned_wins}<span>/{j.prompts}</span></p>
+        <p className="big-number">{(j.vs_prompted ?? j).tuned_wins}<span>/{j.prompts}</span></p>
         <p>
-          {agentName(data.judge_model)} preferred the fine-tuned {data.base_title} on {j.tuned_wins} of {j.prompts} unseen
-          prompts ({j.ties} ties, {j.base_wins} for the base model). <a href={siteHref("results", "answers")}>Read every answer</a>
+          {j.vs_prompted ? (
+            <>{agentName(data.judge_model)} preferred the fine-tuned {data.base_title} over the same model told the goal
+              on {j.vs_prompted.tuned_wins} of {j.prompts} unseen prompts, and over the untrained model on {j.tuned_wins}.</>
+          ) : (
+            <>{agentName(data.judge_model)} preferred the fine-tuned {data.base_title} over the untrained model on
+              {" "}{j.tuned_wins} of {j.prompts} unseen prompts ({j.ties} ties).</>
+          )}{" "}
+          <a href={siteHref("results", "answers")}>Read every answer</a>
         </p>
       </div>
     </section>
