@@ -3,7 +3,7 @@
 //
 //   POST /api/requests                 {goal, code}   the form: queue a request (needs the access code)
 //   GET  /api/requests/<id>                           anyone with the id: its status, log and, once done, its run
-//   POST /api/dispatch/claim                          a dispatcher: take the oldest queued request
+//   POST /api/dispatch/claim           {machine}      a dispatcher: take the oldest queued request (and say it's online)
 //   POST /api/dispatch/<id>            {status, ...}  a dispatcher: report progress, a job id, an error or the run
 //
 // Secrets (`npx wrangler secret put NAME`): ACCESS_CODE, which the form asks for, and DISPATCH_TOKEN, which the
@@ -11,6 +11,10 @@
 
 const STATUSES = ["queued", "planning", "training", "judging", "done", "failed"];
 const MAX_GOAL = 500;
+const MAX_QUEUED = 5;               // more waiting than this and the form asks people to come back shortly
+const ONLINE_MS = 90_000;           // a dispatcher checks in every 20 s while idle, and reports often while working
+const STALLED_MS = 20 * 60_000;     // a request in progress with no report for this long, its machine has gone
+const ACTIVE = ["planning", "training", "judging"];
 
 export default {
   async fetch(request, env) {
@@ -30,7 +34,7 @@ async function route(request, env, [what, id]) {
   if (what === "requests" && id && method === "GET") return show(env, id);
   if (what === "dispatch") {
     authorize(request, env);
-    if (id === "claim" && method === "POST") return claim(env);
+    if (id === "claim" && method === "POST") return claim(env, await request.json().catch(() => ({})));
     if (id && method === "POST") return report(env, id, await body(request));
   }
   throw fail(404, "no such endpoint");
@@ -40,6 +44,10 @@ async function submit(env, { goal, code }) {
   if (!env.ACCESS_CODE || !same(String(code ?? ""), env.ACCESS_CODE)) throw fail(403, "that access code isn't right");
   goal = String(goal ?? "").trim();
   if (goal.length < 10 || goal.length > MAX_GOAL) throw fail(400, `describe the goal in 10 to ${MAX_GOAL} characters`);
+  const waiting = (await env.DB.prepare("SELECT COUNT(*) AS n FROM requests WHERE status = 'queued'").first()).n;
+  if (waiting >= MAX_QUEUED) {
+    throw fail(429, `${waiting} requests are already waiting for the GPU. Try again in a few minutes.`);
+  }
   const id = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO requests (id, goal, status, created) VALUES (?, ?, 'queued', ?)")
     .bind(id, goal, Date.now()).run();
@@ -53,11 +61,14 @@ async function show(env, id) {
     ? (await env.DB.prepare("SELECT COUNT(*) AS n FROM requests WHERE status = 'queued' AND created < ?")
         .bind(row.created).first()).n
     : 0;
-  return json(view(row, ahead));
+  // A database made before the machines table (schema.sql) just doesn't say whether one is online.
+  const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
+  return json({ ...view(row, ahead), online: seen === null ? null : Date.now() - seen < ONLINE_MS });
 }
 
 // Atomic: two dispatchers asking at once can't both get the same request.
-async function claim(env) {
+async function claim(env, { machine } = {}) {
+  await seen(env, machine);
   const row = await env.DB.prepare(
     `UPDATE requests SET status = 'planning', updated = ?
      WHERE id = (SELECT id FROM requests WHERE status = 'queued' ORDER BY created LIMIT 1) AND status = 'queued'
@@ -69,6 +80,7 @@ async function report(env, id, { status, message, job_id, run, machine }) {
   if (!STATUSES.includes(status)) throw fail(400, `status must be one of ${STATUSES.join(", ")}`);
   const row = await env.DB.prepare("SELECT log FROM requests WHERE id = ?").bind(id).first();
   if (!row) throw fail(404, "no such request");
+  await seen(env, machine);
   const log = JSON.parse(row.log ?? "[]");
   if (message) log.push({ at: Date.now(), status, message: String(message).slice(0, 1000) });
   await env.DB.prepare(
@@ -79,10 +91,23 @@ async function report(env, id, { status, message, job_id, run, machine }) {
   return json({ ok: true });
 }
 
+async function seen(env, machine) {
+  if (!machine) return;
+  await env.DB.prepare("INSERT INTO machines (name, seen) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET seen = excluded.seen")
+    .bind(String(machine).slice(0, 100), Date.now()).run().catch(() => {});  // no machines table yet: skip it
+}
+
 function view(row, ahead = 0) {
-  return { id: row.id, goal: row.goal, status: row.status, job_id: row.job_id, machine: row.machine, ahead,
-           created: row.created, updated: row.updated, log: JSON.parse(row.log ?? "[]"),
-           run: row.run ? JSON.parse(row.run) : null };
+  const log = JSON.parse(row.log ?? "[]");
+  let status = row.status;
+  // Not written back: if the machine was only slow and reports again, the request carries on as before.
+  if (ACTIVE.includes(status) && Date.now() - (row.updated ?? row.created) > STALLED_MS) {
+    status = "failed";
+    log.push({ at: Date.now(), status, message: `the machine running it stopped responding (no word for ${
+      Math.round((Date.now() - (row.updated ?? row.created)) / 60_000)} minutes)` });
+  }
+  return { id: row.id, goal: row.goal, status, job_id: row.job_id, machine: row.machine, ahead,
+           created: row.created, updated: row.updated, log, run: row.run ? JSON.parse(row.run) : null };
 }
 
 function authorize(request, env) {

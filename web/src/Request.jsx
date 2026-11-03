@@ -105,6 +105,11 @@ function Status({ id, onNew }) {
           ))}
         </ol>
       )}
+      {data.status === "queued" && data.online === false && (
+        <p className="notice small" role="status">
+          No GPU is online right now. Your request is saved and starts as soon as the machine is back.
+        </p>
+      )}
       {data.log.length > 0 && (
         <ul className="request-log muted small">
           {data.log.slice(-6).map((l, i) => <li key={i}>{l.message}</li>)}

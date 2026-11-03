@@ -12,3 +12,9 @@ CREATE TABLE IF NOT EXISTS requests (
   updated INTEGER
 );
 CREATE INDEX IF NOT EXISTS queued ON requests (status, created);
+
+-- The dispatchers, and when each last checked in: the form says so when none is online.
+CREATE TABLE IF NOT EXISTS machines (
+  name TEXT PRIMARY KEY,      -- the computer's name (platform.node())
+  seen INTEGER NOT NULL       -- ms since 1970
+);
