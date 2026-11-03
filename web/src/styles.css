@@ -310,7 +310,9 @@ main > section { padding: 56px 0; scroll-margin-top: 16px; }
 .dot.ok { background: var(--good); box-shadow: 0 0 0 4px color-mix(in srgb, var(--good) 22%, transparent); }
 .dot.bad { background: var(--bad); }
 
-.pipeline { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.pipeline { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1100px) { .pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .pipeline { grid-template-columns: 1fr; } }
 .pipeline li { padding: 22px 18px; }
 .step-no {
   display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
@@ -519,55 +521,116 @@ main > .story {
              transition: opacity 0.22s ease, transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.08), visibility 0s linear 0.32s; }
 .chatdock.open .chatpanel { opacity: 1; transform: none; visibility: visible;
                             transition: opacity 0.22s ease, transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.08), visibility 0s; }
-.chatpanel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
-                  padding: 16px 16px 12px 18px; border-bottom: 1px solid var(--line); }
-.chatpanel-head .small { margin: 2px 0 0; }
-.chatpanel-title { font: 650 1.05rem/1.2 var(--display); margin: 0; }
-.chatpanel-tools { display: flex; align-items: center; gap: 4px; }
-.chatpanel-close, .chatpanel-clear { border: 0; background: none; color: var(--ink-2); cursor: pointer;
-                                     border-radius: 10px; padding: 6px 8px; font: inherit; }
-.chatpanel-close { display: grid; place-items: center; }
-.chatpanel-close:hover, .chatpanel-clear:hover { background: var(--hover); color: var(--ink); }
+.chatpanel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; position: relative;
+                  padding: 10px 10px 10px 10px; border-bottom: 1px solid var(--line); }
+.chatpanel-title { font: 650 1.05rem/1.2 var(--display); margin: 0 0 0 8px; }
+.chatpanel-tools { display: flex; align-items: center; gap: 2px; }
+.chatpanel-icon { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px;
+                  background: none; color: var(--ink-2); cursor: pointer; transition: background 0.15s, color 0.15s; }
+.chatpanel-icon:hover { background: var(--hover); color: var(--ink); }
+.chatpanel-icon:disabled { opacity: 0.4; cursor: default; }
 .chatpanel-pad { margin: 8px 16px 0; }
-.chatpanel .model-picker { display: flex; gap: 6px; overflow-x: auto; padding: 12px 16px 10px; scrollbar-width: none;
-                           border-bottom: 1px solid var(--line); }
-.chatpanel .model-picker::-webkit-scrollbar { display: none; }
-.model-chip { flex: none; font: inherit; font-size: 0.85rem; font-weight: 600; padding: 6px 12px; border-radius: 999px;
-              cursor: pointer; color: var(--ink); background: var(--hover); border: 1px solid var(--line); white-space: nowrap; }
-.model-chip .small { font-weight: 500; color: var(--ink-2); font-size: 0.8rem; }
-.model-chip.on { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--on-accent); }
-.model-chip.on .small { color: var(--on-accent); opacity: 0.85; }
-.model-chip:disabled { cursor: default; opacity: 0.6; }
-.model-chip.on:disabled { opacity: 1; }
-.model-chip:focus-visible { outline: 2px solid var(--accent-fill); outline-offset: 2px; }
-.talk { flex: 1; list-style: none; margin: 0; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
-        overflow-y: auto; overscroll-behavior: contain; }
-.talk-about { padding: 0 2px 4px; }
-.talk-empty { margin: auto 0; padding: 18px 8px; text-align: center; }
-.bubble { max-width: 85%; padding: 9px 13px; border-radius: 18px; white-space: pre-wrap; overflow-wrap: anywhere;
-          animation: bubble-in 0.25s ease-out; }
-.bubble.user { align-self: flex-end; border-bottom-right-radius: 6px; background: var(--accent-fill); color: var(--on-accent); }
-.bubble.assistant { align-self: flex-start; border-bottom-left-radius: 6px; background: var(--hover); }
-@keyframes bubble-in { from { opacity: 0; transform: translateY(6px); } }
-.chatpanel-form { display: flex; gap: 8px; padding: 12px 14px 14px; border-top: 1px solid var(--line); }
-.chatpanel-form input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 999px; font: inherit; color: var(--ink);
-                        background: var(--hover); border: 1px solid var(--line); }
-.chatpanel-form input::placeholder { color: var(--ink-2); }
-.chatpanel-form input:focus-visible { outline: 2px solid var(--accent-fill); outline-offset: 1px; }
-.chatpanel-send { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 0; cursor: pointer; display: grid;
-                  place-items: center; color: var(--on-accent); background: var(--accent-fill); }
-.chatpanel-send:disabled { opacity: 0.45; cursor: default; }
+
+/* Each model's badge, on its own colour. */
+.mav { flex: none; display: grid; place-items: center; border-radius: 50%; font-weight: 750; line-height: 1;
+       color: #fff; background: linear-gradient(140deg, #8a8580, #57524d);
+       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+.mav.m-car-noises { background: linear-gradient(140deg, #ffb547, #e0620d); }
+.mav.m-twain-plato { background: linear-gradient(140deg, #a98bff, #5b3fd1); }
+.mav.m-pirate { background: linear-gradient(140deg, #4fd1a1, #127a63); }
+
+/* The model picker: like the menus at the top of the big chat apps. */
+.mpick { min-width: 0; }
+.mpick-button { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; padding: 5px 10px 5px 5px;
+                border: 0; border-radius: 14px; background: none; cursor: pointer; text-align: left;
+                transition: background 0.15s; }
+.mpick-button:hover, .mpick-button[aria-expanded="true"] { background: var(--hover); }
+.mpick-button > svg { flex: none; color: var(--ink-2); transition: transform 0.2s ease; }
+.mpick-button[aria-expanded="true"] > svg { transform: rotate(180deg); }
+.mpick-label { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.mpick-name { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 0.98rem;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpick-sub { font-size: 0.78rem; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpick-menu { position: absolute; left: 10px; right: 10px; top: calc(100% + 6px); z-index: 5; padding: 6px;
+              border-radius: 18px; background: var(--solid); border: 1px solid var(--line);
+              box-shadow: var(--shadow), 0 24px 60px -20px rgba(0, 0, 0, 0.45);
+              max-height: calc(100% * 6); overflow-y: auto;
+              transform-origin: top left; opacity: 0; transform: translateY(-6px) scale(0.97); visibility: hidden;
+              transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.1), visibility 0s linear 0.22s; }
+.mpick-menu.open { opacity: 1; transform: none; visibility: visible;
+                   transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.1), visibility 0s; }
+.mpick-group { margin: 8px 10px 4px; font-size: 0.72rem; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase;
+               color: var(--ink-2); }
+.mpick-option { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 10px; border: 0;
+                border-radius: 12px; background: none; cursor: pointer; text-align: left; }
+.mpick-option:hover, .mpick-option:focus-visible { background: var(--hover); outline: none; }
+.mpick-option[aria-selected="true"] { background: color-mix(in srgb, var(--accent-fill) 10%, transparent); }
+.mpick-about { font-size: 0.8rem; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+               overflow: hidden; }
+.mpick-score { flex: none; padding: 1px 7px; border-radius: 999px; font-size: 0.72rem; font-weight: 650;
+               color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+.mpick-check { flex: none; width: 18px; margin-left: auto; color: var(--accent); display: grid; }
+.mpick-foot { margin: 6px 10px 4px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 0.74rem;
+              line-height: 1.35; color: var(--ink-2); }
+
+/* The conversation. */
+.talk { flex: 1; list-style: none; margin: 0; padding: 16px 14px 8px; display: flex; flex-direction: column; gap: 12px;
+        overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; animation: talk-in 0.3s ease-out; }
+@keyframes talk-in { from { opacity: 0; transform: translateY(6px); } }
+.talk-hello { margin: auto 0; padding: 12px 10px; text-align: center; display: flex; flex-direction: column;
+              align-items: center; gap: 6px; }
+.talk-hello .mav { margin-bottom: 6px; box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+                   animation: hello-pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
+@keyframes hello-pop { from { transform: scale(0.6); opacity: 0; } }
+.talk-hello-name { font: 650 1.15rem/1.2 var(--display); }
+.talk-hello > .small { max-width: 32ch; }
+.starters { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 14px; }
+.starters button { padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface);
+                   font-size: 0.9rem; text-align: left; cursor: pointer;
+                   transition: background 0.15s, border-color 0.15s, transform 0.15s;
+                   animation: starter-in 0.4s ease-out both; animation-delay: calc(0.08s * var(--i) + 0.1s); }
+.starters button:hover { background: var(--hover); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); transform: translateX(3px); }
+.starters button:disabled { opacity: 0.5; cursor: default; transform: none; }
+@keyframes starter-in { from { opacity: 0; transform: translateY(8px); } }
+.msg { display: flex; align-items: flex-end; gap: 8px; animation: bubble-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.1); }
+.msg.user { justify-content: flex-end; }
+.msg .bubble { max-width: 82%; padding: 9px 13px; border-radius: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.user .bubble { border-bottom-right-radius: 6px; background: var(--accent-fill); color: var(--on-accent); }
+.msg.assistant .bubble { border-bottom-left-radius: 6px; background: var(--hover); }
+.bubble.waiting { display: flex; align-items: center; gap: 10px; }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } }
+.talk-compare { padding-left: 34px; animation: bubble-in 0.3s ease-out 0.2s both; }
+.talk-compare button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px;
+                       border: 1px dashed var(--line); background: none; color: var(--accent); font-size: 0.8rem;
+                       font-weight: 600; cursor: pointer; }
+.talk-compare button:hover { background: var(--hover); border-style: solid; }
+
+/* Where you type: a rounded box that grows, with the send button inside it. */
+.composer { display: flex; align-items: flex-end; gap: 6px; margin: 6px 12px 0; padding: 6px 6px 6px 14px;
+            border-radius: 22px; background: var(--hover); border: 1px solid var(--line);
+            transition: border-color 0.15s, box-shadow 0.15s; }
+.composer:focus-within { border-color: color-mix(in srgb, var(--accent-fill) 60%, var(--line));
+                         box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-fill) 14%, transparent); }
+.composer textarea { flex: 1; min-width: 0; resize: none; border: 0; background: none; padding: 7px 0; font: inherit;
+                     font-size: 0.95rem; line-height: 1.4; color: var(--ink); max-height: 132px; }
+.composer textarea::placeholder { color: var(--ink-2); }
+.composer textarea:focus { outline: none; }
+.composer-send { width: 34px; height: 34px; flex: none; border-radius: 50%; border: 0; cursor: pointer; display: grid;
+                 place-items: center; color: var(--on-accent); background: var(--accent-fill);
+                 transition: transform 0.15s, opacity 0.15s; }
+.composer-send:not(:disabled):hover { transform: scale(1.08); }
+.composer-send:disabled { opacity: 0.35; cursor: default; }
+.chatpanel-note { margin: 0; padding: 6px 16px 10px; font-size: 0.7rem; line-height: 1.35; color: var(--ink-2); text-align: center; }
 
 /* Phones: the panel spans the screen above the button. */
 @media (max-width: 560px) {
   .chatdock { right: 14px; bottom: 14px; }
-  .chatpanel { width: calc(100vw - 28px); height: min(70vh, 560px); }
+  .chatpanel { width: calc(100vw - 28px); height: min(72vh, 600px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .chatpanel { transform: none; transition: opacity 0.15s ease, visibility 0s linear 0.15s; }
-  .chatdock.open .chatpanel { transition: opacity 0.15s ease, visibility 0s; }
+  .chatpanel, .mpick-menu { transform: none !important; }
   .chatlauncher, .chatlauncher-icon { transition: none; }
-  .bubble { animation: none; }
+  .msg, .talk, .talk-hello .mav, .starters button, .talk-compare { animation: none; }
 }
 
 /* The judge's two comparisons, and what the scores mean. */
@@ -580,5 +643,103 @@ main > .story {
 .reading summary { cursor: pointer; font-weight: 600; }
 .reading ul { margin: 10px 0 0; padding-left: 1.2em; display: grid; gap: 8px; }
 
-.chatpanel-note { margin: 0; padding: 8px 16px 0; font-size: 0.75rem; line-height: 1.35; color: var(--ink-2); border-top: 1px solid var(--line); }
-.chatpanel-note + .chatpanel-form { border-top: 0; padding-top: 8px; }
+
+/* --- the step a request is on, animated (Phase.jsx) ------------------------------------------------------------ */
+
+.phase { margin-top: 18px; padding: 18px; border-radius: 18px; background: var(--hover); border: 1px solid var(--line);
+         overflow: hidden; animation: verdict-in 0.4s ease-out; }
+.lora-pic { display: flex; align-items: center; justify-content: center; gap: clamp(8px, 2.5vw, 22px); flex-wrap: wrap; }
+.lora-part { margin: 0; padding: 0; background: none; border: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.lora-part figcaption { margin: 0; font-size: 0.78rem; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.lora-op { font: 700 1.6rem var(--display); color: var(--ink-2); margin-bottom: 24px; }
+.lora-grid { display: grid; gap: 3px; }
+.lora-grid i { display: block; width: 11px; height: 11px; border-radius: 3px; }
+/* W: frozen grey, with a wave of light running through it column by column, as data passes forward. */
+.lora-grid.w i { background: color-mix(in srgb, var(--ink-2) 28%, transparent);
+                 animation: forward 1.8s ease-in-out infinite; animation-delay: calc(var(--col) * 0.09s); }
+@keyframes forward { 0%, 55%, 100% { background: color-mix(in srgb, var(--ink-2) 28%, transparent); }
+                     22% { background: color-mix(in srgb, var(--ink-2) 62%, transparent); } }
+/* B and A: the adapter. Each cell flickers as it's updated, and the whole thing glows brighter epoch by epoch. */
+.lora-ba { display: flex; gap: 8px; align-items: center; }
+.lora-ba > b { font-weight: 700; color: var(--ink-2); }
+.lora-grid.b i, .lora-grid.a i {
+  background: var(--accent-fill); opacity: calc(0.3 + var(--glow) * 0.5);
+  animation: learn 1.4s ease-in-out infinite; animation-delay: var(--d);
+}
+@keyframes learn { 50% { opacity: 1; transform: scale(1.18); box-shadow: 0 0 10px var(--accent-fill); } }
+.lora-stream { position: relative; width: 46px; height: 4px; border-radius: 4px; margin-bottom: 24px;
+               background: linear-gradient(90deg, transparent, var(--line)); }
+.lora-stream i { position: absolute; top: -2px; left: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+                 animation: token 1.8s linear infinite; }
+.lora-stream i:nth-child(2) { animation-delay: 0.45s; }
+.lora-stream i:nth-child(3) { animation-delay: 0.9s; }
+.lora-stream i:nth-child(4) { animation-delay: 1.35s; }
+@keyframes token { from { transform: translateX(-6px); opacity: 0; } 20% { opacity: 1; } to { transform: translateX(44px); opacity: 0; } }
+.lora-epochs { display: flex; gap: 6px; margin-top: 16px; }
+.lora-epochs span { flex: 1; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--ink-2) 20%, transparent);
+                    position: relative; overflow: hidden; }
+.lora-epochs span.done { background: var(--good); }
+.lora-epochs span.now::after { content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: repeating-linear-gradient(-45deg, var(--accent-fill) 0 8px, color-mix(in srgb, var(--accent-fill) 55%, transparent) 8px 16px);
+  background-size: 22.6px 100%; animation: stripes 0.8s linear infinite; }
+@keyframes stripes { to { background-position: 22.6px 0; } }
+
+/* The Job Architect writing chats: bubbles that write themselves out, one after another. */
+.writing { display: flex; flex-direction: column; gap: 8px; }
+.writing-line { position: relative; height: 14px; width: var(--w); border-radius: 999px; overflow: hidden;
+                background: color-mix(in srgb, var(--ink-2) 14%, transparent); }
+.writing-line::after { content: ""; position: absolute; inset: 0; border-radius: inherit; transform: scaleX(0);
+                       transform-origin: left; animation: write 4.8s ease-in-out infinite; animation-delay: calc(var(--i) * 0.6s); }
+.writing-line.user { align-self: flex-end; --w: 46%; }
+.writing-line.user::after { transform-origin: right; background: color-mix(in srgb, var(--accent-fill) 70%, transparent); }
+.writing-line.bot { --w: 72%; }
+.writing-line.bot::after { background: color-mix(in srgb, var(--ink-2) 45%, transparent); }
+.writing-line:nth-child(3) { --w: 34%; }
+.writing-line:nth-child(4) { --w: 60%; }
+@keyframes write { 0% { transform: scaleX(0); opacity: 1; } 35%, 82% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+
+/* --- motion across the site ------------------------------------------------------------------------------------ */
+
+/* The headline comes in line by line, and its second line has a slow warm shimmer. */
+.hero > * { animation: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.hero > :nth-child(2) { animation-delay: 0.08s; }
+.hero > :nth-child(3) { animation-delay: 0.18s; }
+.hero > :nth-child(4) { animation-delay: 0.28s; }
+@keyframes rise { from { opacity: 0; transform: translateY(18px); filter: blur(4px); } }
+.shine { background: linear-gradient(100deg, var(--accent) 0%, #ff8a3d 30%, var(--accent) 55%, var(--ink) 100%);
+         background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+         animation: shine 9s ease-in-out infinite alternate; }
+@keyframes shine { to { background-position: 100% 0; } }
+
+/* Tiles and buttons answer the pointer. */
+.tile { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, border-color 0.25s; }
+.pipeline li:hover, .stat:hover { transform: translateY(-4px); box-shadow: var(--shadow);
+                                  border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.button { transition: transform 0.15s ease, filter 0.15s, box-shadow 0.2s; }
+.button:hover { transform: translateY(-1px); }
+.button:active { transform: translateY(1px) scale(0.98); }
+.step-no { transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+.pipeline li:hover .step-no { transform: scale(1.15) rotate(-8deg); }
+
+/* Sections slide up as they scroll into view, where the browser can tie animation to scrolling. */
+@supports (animation-timeline: view()) {
+  main > section:not(.hero), .pipeline li, .stats > * {
+    animation: rise linear both; animation-timeline: view(); animation-range: entry 0% entry 40%;
+  }
+}
+
+/* The chat button says hello once, a moment after the page loads. */
+.chatlauncher { animation: launcher-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.4) 0.6s both; }
+.chatlauncher::after { content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+                       box-shadow: 0 0 0 0 var(--accent-fill); animation: ping 1.6s ease-out 1.4s 2; }
+.chatdock.open .chatlauncher::after { animation: none; }
+@keyframes launcher-in { from { transform: scale(0); opacity: 0; } }
+@keyframes ping { to { box-shadow: 0 0 0 16px transparent; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero > *, .shine, .phase, .lora-grid i, .lora-stream i, .lora-epochs span::after, .writing-line::after,
+  main > section, .pipeline li, .stats > *, .chatlauncher, .chatlauncher::after { animation: none !important; }
+  .writing-line::after { transform: none; }
+  .tile, .button, .step-no { transition: none; }
+  .pipeline li:hover, .stat:hover, .button:hover, .button:active { transform: none; }
+}

@@ -25,7 +25,7 @@ export default function MetaPage({ run }) {
     <>
       <section id="overview" className="hero" aria-labelledby="hero-title">
         <p className="eyebrow">Muse Spark agents</p>
-        <h1 id="hero-title">Plain English in.<br />A judged fine-tune out.</h1>
+        <h1 id="hero-title">Plain English in.<br /><span className="shine">A judged fine-tune out.</span></h1>
         <p className="lede">
           Two Muse Spark agents sit on either side of a fine-tune. One turns a goal into a training job, the other
           checks whether the model actually got better.

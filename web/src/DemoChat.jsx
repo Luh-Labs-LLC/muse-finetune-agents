@@ -1,8 +1,8 @@
 // The demo chat, in the corner of every page: a button that opens a chat panel, where you pick one of the demo
-// models (the untrained base model or a fine-tune the agents made) and talk to it. Each turn goes to the queue
-// (worker.js) with the conversation so far, the dispatcher on our GPU answers as that model, and the reply joins
-// the conversation. Each model's conversation is kept in this browser, so it's still there next visit; nobody
-// else sees it. The panel stays mounted while closed, so a reply on its way still arrives.
+// models (the untrained base model or a fine-tune the agents made) from a menu at the top and talk to it. Each turn
+// goes to the queue (worker.js) with the conversation so far, the dispatcher on our GPU answers as that model, and
+// the reply joins the conversation. Each model's conversation is kept in this browser, so it's still there next
+// visit; nobody else sees it. The panel stays mounted while closed, so a reply on its way still arrives.
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { useJson } from "./lib/data.js";
@@ -11,6 +11,16 @@ const POLL_MS = 1500;
 const GIVE_UP_MS = 3 * 60_000;
 const KEY = "muse-demo-chat";
 const OPEN = "muse-open-chat";  // the event openChat() sends, for buttons elsewhere on the page
+const BASE = "qwen3-0.6b";
+
+// Things to try first, per model: chosen to show off what the fine-tune learned.
+const STARTERS = {
+  [BASE]: ["Tell me a joke", "What's the capital of France?", "How do I stay focused?"],
+  "car-noises": ["How's your day going?", "What's 2 + 2?", "Recommend a good book"],
+  "twain-plato": ["Is it better to be rich or wise?", "What is justice?", "Should I learn the piano?"],
+  pirate: ["What should I have for dinner?", "How do I fix a flat tire?", "Any advice for a job interview?"],
+};
+const FALLBACK = ["Hello! Who are you?", "Tell me a joke", "What's the capital of France?"];
 
 export function openChat() {
   window.dispatchEvent(new Event(OPEN));
@@ -30,6 +40,15 @@ function save(all) {
   } catch { /* no storage: the conversation lasts as long as the page */ }
 }
 
+// A model's round badge: its first letter on its own colour.
+function Avatar({ model, size = 28 }) {
+  return (
+    <span className={`mav m-${model.id}`} style={{ width: size, height: size, fontSize: size * 0.46 }} aria-hidden="true">
+      {model.title[0]}
+    </span>
+  );
+}
+
 export default function DemoChat() {
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState(true);  // false when a reply arrived while the panel was closed
@@ -45,6 +64,7 @@ export default function DemoChat() {
 
   const model = models?.find((m) => m.id === picked) ?? models?.find((m) => !m.base) ?? models?.[0];
   const messages = (model && all[model.id]) ?? [];
+  const base = models?.find((m) => m.base);
 
   useEffect(() => save(all), [all]);
   useEffect(() => {
@@ -59,15 +79,26 @@ export default function DemoChat() {
     if (!open) return;
     setSeen(true);
     const t = setTimeout(() => input.current?.focus(), 180);  // once the panel has grown in
-    const onKey = (e) => { if (e.key === "Escape") close(); };
-    window.addEventListener("keydown", onKey);
-    return () => { clearTimeout(t); window.removeEventListener("keydown", onKey); };
+    return () => clearTimeout(t);
   }, [open]);
-  useEffect(() => end.current?.scrollIntoView({ block: "nearest" }), [messages.length, pending?.status, open, model?.id]);
+  useEffect(() => end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+            [messages.length, pending?.status, open, model?.id]);
+  useEffect(() => {  // the box grows with what's typed, up to five lines
+    const el = input.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
+  }, [draft]);
 
   function close() {
     setOpen(false);
     launcher.current?.focus();
+  }
+
+  function pick(id) {
+    setPicked(id);
+    setProblem(null);
+    setTimeout(() => input.current?.focus(), 0);
   }
 
   // Follow the reply that's on its way, then add it to that model's conversation.
@@ -99,40 +130,48 @@ export default function DemoChat() {
     return () => { stop = true; };
   }, [pending?.id]);
 
-  async function send(e) {
-    e.preventDefault();
-    const text = draft.trim();
-    if (!text || pending || !model) return;
-    const conversation = [...messages, { role: "user", content: text }];
-    setAll((a) => ({ ...a, [model.id]: conversation }));
-    setDraft("");
+  async function send(text, to = model) {
+    text = text.trim();
+    if (!text || pending || !to) return;
+    const conversation = [...(all[to.id] ?? []), { role: "user", content: text }];
+    setAll((a) => ({ ...a, [to.id]: conversation }));
+    if (to === model) setDraft("");
     setProblem(null);
     try {
       const r = await fetch("/api/talk", { method: "POST", headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({ model: model.id, messages: conversation }) });
+                                          body: JSON.stringify({ model: to.id, messages: conversation }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error ?? `the site answered ${r.status}`);
-      setPending({ id: d.id, model: model.id, started: Date.now(), status: "waiting" });
+      setPending({ id: d.id, model: to.id, started: Date.now(), status: "waiting" });
     } catch (err) {
       setProblem(err.message);
     }
   }
 
+  // The same question, to the untrained model: the quickest way to see what fine-tuning changed.
+  const lastAsked = [...messages].reverse().find((m) => m.role === "user")?.content;
+  const canCompare = model && !model.base && base && lastAsked && messages.at(-1)?.role === "assistant" && !pending;
+  function compare() {
+    pick(base.id);
+    send(lastAsked, base);
+  }
+
   return (
-    <div className={`chatdock${open ? " open" : ""}`}>
+    <div className={`chatdock${open ? " open" : ""}`}
+         onKeyDown={(e) => { if (e.key === "Escape" && open && !e.defaultPrevented) close(); }}>
       <div id="demochat" className="chatpanel" role="dialog" aria-label="Talk to the models" aria-hidden={!open}
            inert={open ? undefined : ""}>
         <header className="chatpanel-head">
-          <div>
-            <p className="chatpanel-title">Talk to the models</p>
-            <p className="small muted">Fine-tuned by the Muse Spark agents, running on our GPU</p>
-          </div>
+          {models ? <ModelMenu models={models} model={model} onPick={pick} pending={pending} />
+                  : <p className="chatpanel-title">Talk to the models</p>}
           <div className="chatpanel-tools">
             {messages.length > 0 && (
-              <button type="button" className="chatpanel-clear small" disabled={!!pending}
-                      onClick={() => { setAll((a) => ({ ...a, [model.id]: [] })); setProblem(null); }}>Clear</button>
+              <button type="button" className="chatpanel-icon" disabled={!!pending} title="New chat"
+                      aria-label="New chat" onClick={() => { setAll((a) => ({ ...a, [model.id]: [] })); setProblem(null); }}>
+                <Icon name="compose" size={18} />
+              </button>
             )}
-            <button type="button" className="chatpanel-close" aria-label="Close the chat" onClick={close}>
+            <button type="button" className="chatpanel-icon" aria-label="Close the chat" title="Close" onClick={close}>
               <Icon name="close" size={18} />
             </button>
           </div>
@@ -140,52 +179,64 @@ export default function DemoChat() {
         {error && <p className="form-error small chatpanel-pad">Couldn't load the models ({error}).</p>}
         {models && (
           <>
-            <div className="model-picker" role="radiogroup" aria-label="Model">
-              {models.map((m) => (
-                <button key={m.id} type="button" role="radio" aria-checked={m.id === model.id}
-                        className={`model-chip${m.id === model.id ? " on" : ""}`}
-                        disabled={!!pending} onClick={() => { setPicked(m.id); setProblem(null); }}>
-                  {m.title}
-                  {m.score && <span className="small"> · {m.score}</span>}
-                </button>
-              ))}
-            </div>
-            <ol className="talk" aria-live="polite">
-              <li className="talk-about small muted">
-                {model.base ? model.about
-                  : <>Fine-tuned from Qwen3 0.6B for “{model.about}” The judge preferred it over the same model simply
-                    told to do that on {model.score} unseen prompts.</>}
-              </li>
-              {messages.length === 0 && !pending && (
-                <li className="talk-empty muted small">
-                  {model.base ? "Say something to see how it answers before any fine-tuning."
-                    : "Say anything, then switch to the untrained model and ask the same thing."}
+            <ol className="talk" aria-live="polite" key={model.id}>
+              {messages.length === 0 && !pending ? (
+                <li className="talk-hello">
+                  <Avatar model={model} size={52} />
+                  <p className="talk-hello-name">{model.title}</p>
+                  <p className="small muted">
+                    {model.base ? model.about
+                      : <>Fine-tuned from Qwen3 0.6B to “{model.about}” The judge preferred it over the same model
+                        just told to do that on {model.score} unseen prompts.</>}
+                  </p>
+                  <div className="starters">
+                    {(STARTERS[model.id] ?? FALLBACK).map((s, i) => (
+                      <button key={s} type="button" style={{ "--i": i }} disabled={!!pending} onClick={() => send(s)}>{s}</button>
+                    ))}
+                  </div>
                 </li>
-              )}
-              {messages.map((m, i) => (
-                <li key={i} className={`bubble ${m.role}`}>
-                  <span className="sr-only">{m.role === "user" ? "You: " : `${model.title}: `}</span>{m.content}
+              ) : messages.map((m, i) => (
+                <li key={i} className={`msg ${m.role}`}>
+                  {m.role === "assistant" && <Avatar model={model} size={26} />}
+                  <div className="bubble">
+                    <span className="sr-only">{m.role === "user" ? "You: " : `${model.title}: `}</span>{m.content}
+                  </div>
                 </li>
               ))}
               {pending && pending.model === model.id && (
-                <li className="bubble assistant waiting small muted" role="status">
-                  <span className="typing" aria-hidden="true"><i /><i /><i /></span>{" "}
-                  {pending.online === false ? "No GPU is online right now; it'll answer when the machine is back."
-                    : pending.status === "answering" ? "Answering…" : "Waiting for the GPU (it may be training a request)…"}
+                <li className="msg assistant" role="status">
+                  <Avatar model={model} size={26} />
+                  <div className="bubble waiting">
+                    <span className="typing" aria-hidden="true"><i /><i /><i /></span>
+                    <span className="small muted">
+                      {pending.online === false ? "No GPU is online right now; it'll answer when the machine is back."
+                        : pending.status === "answering" ? "Thinking…" : "Waiting for the GPU…"}
+                    </span>
+                  </div>
+                </li>
+              )}
+              {canCompare && (
+                <li className="talk-compare">
+                  <button type="button" onClick={compare}>
+                    <Icon name="swap" size={15} /> Ask the untrained model the same thing
+                  </button>
                 </li>
               )}
               <li ref={end} aria-hidden="true" />
             </ol>
             {problem && <p className="form-error small chatpanel-pad" role="alert">{problem}</p>}
-            <p className="chatpanel-note">Replies are AI-generated by small models and can be wrong. Don't share personal details; messages are kept for 7 days.</p>
-            <form className="chatpanel-form" onSubmit={send}>
+            <form className="composer" onSubmit={(e) => { e.preventDefault(); send(draft); }}>
               <label className="sr-only" htmlFor="demochat-input">Message {model.title}</label>
-              <input id="demochat-input" ref={input} value={draft} maxLength={1000} autoComplete="off"
-                     placeholder={`Message ${model.title}…`} onChange={(e) => setDraft(e.target.value)} />
-              <button className="chatpanel-send" type="submit" aria-label="Send" disabled={!!pending || !draft.trim()}>
-                <Icon name="arrow" size={18} />
+              <textarea id="demochat-input" ref={input} rows={1} value={draft} maxLength={1000} autoComplete="off"
+                        placeholder={`Message ${model.title}`} onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(draft); }
+                        }} />
+              <button className="composer-send" type="submit" aria-label="Send" disabled={!!pending || !draft.trim()}>
+                <Icon name="up" size={18} />
               </button>
             </form>
+            <p className="chatpanel-note">Small models, AI-generated replies: they can be wrong. Don't share personal details; messages are kept for 7 days.</p>
           </>
         )}
       </div>
@@ -195,6 +246,77 @@ export default function DemoChat() {
         <span className="chatlauncher-icon close"><Icon name="close" size={22} /></span>
         {!seen && <span className="chatlauncher-dot" aria-hidden="true" />}
       </button>
+    </div>
+  );
+}
+
+// The model picker: the current model's name as a button, and a menu of every model under it, fine-tunes first,
+// each with what it does and its score. Arrow keys move, Enter picks, Escape closes it (and only it).
+function ModelMenu({ models, model, onPick, pending }) {
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState(0);
+  const button = useRef(null), menu = useRef(null);
+  const order = [...models.filter((m) => !m.base), ...models.filter((m) => m.base)];
+
+  useEffect(() => {
+    if (!open) return;
+    setAt(Math.max(0, order.findIndex((m) => m.id === model.id)));
+    const away = (e) => { if (!menu.current?.contains(e.target) && !button.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open]);
+  useEffect(() => { if (open) menu.current?.querySelectorAll("[role=option]")[at]?.focus(); }, [open, at]);
+
+  function choose(m) {
+    setOpen(false);
+    onPick(m.id);
+  }
+
+  function keys(e) {
+    if (e.key === "ArrowDown") { e.preventDefault(); setAt((i) => (i + 1) % order.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setAt((i) => (i - 1 + order.length) % order.length); }
+    else if (e.key === "Home") { e.preventDefault(); setAt(0); }
+    else if (e.key === "End") { e.preventDefault(); setAt(order.length - 1); }
+    else if (e.key === "Escape") { e.preventDefault(); setOpen(false); button.current?.focus(); }
+    else if (e.key === "Tab") setOpen(false);
+  }
+
+  return (
+    <div className="mpick">
+      <button ref={button} type="button" className="mpick-button" aria-haspopup="listbox" aria-expanded={open}
+              onClick={() => setOpen((o) => !o)}
+              onKeyDown={(e) => { if (e.key === "ArrowDown" && !open) { e.preventDefault(); setOpen(true); } }}>
+        <Avatar model={model} size={30} />
+        <span className="mpick-label">
+          <span className="mpick-name">{model.title}</span>
+          <span className="mpick-sub">{model.base ? "Base model · no fine-tuning" : `Fine-tune · won ${model.score}`}</span>
+        </span>
+        <Icon name="down" size={16} />
+      </button>
+      <div ref={menu} className={`mpick-menu${open ? " open" : ""}`} role="listbox" aria-label="Choose a model"
+           onKeyDown={keys} inert={open ? undefined : ""} aria-hidden={!open}>
+        {order.map((m, i) => (
+          <div key={m.id}>
+            {(i === 0 || m.base !== order[i - 1].base) && (
+              <p className="mpick-group" aria-hidden="true">{m.base ? "Base model" : "Fine-tuned by the agents"}</p>
+            )}
+            <button type="button" role="option" aria-selected={m.id === model.id} tabIndex={i === at ? 0 : -1}
+                    className="mpick-option" onClick={() => choose(m)} onMouseEnter={() => setAt(i)}>
+              <Avatar model={m} size={34} />
+              <span className="mpick-label">
+                <span className="mpick-name">
+                  {m.title}
+                  {m.score && <span className="mpick-score">{m.score}</span>}
+                  {pending?.model === m.id && <span className="typing" aria-label="replying"><i /><i /><i /></span>}
+                </span>
+                <span className="mpick-about">{m.about}</span>
+              </span>
+              <span className="mpick-check">{m.id === model.id && <Icon name="check" size={18} />}</span>
+            </button>
+          </div>
+        ))}
+        <p className="mpick-foot">Scores: how often the judge preferred the fine-tune over the base model told the same goal, on 20 unseen prompts.</p>
+      </div>
     </div>
   );
 }

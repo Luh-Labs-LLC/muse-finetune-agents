@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import Chat from "./Chat.jsx";
 import { Sparkline } from "./components.jsx";
+import { Lora, Writing } from "./Phase.jsx";
 import { useJson } from "./lib/data.js";
 import { DOMAIN, SITES } from "./site.js";
 
@@ -128,7 +129,9 @@ function rounds(log) {
   const by = new Map();
   for (const { detail: d } of log) {
     if (!d?.round) continue;
-    const r = by.get(d.round) ?? { round: d.round, epochs: [], verdicts: [], prompts: null, kept: null };
+    const r = by.get(d.round) ?? { round: d.round, epochs: [], verdicts: [], prompts: null, kept: null, total: null, rank: null };
+    if (d.kind === "round") Object.assign(r, { total: d.epochs ?? null, rank: d.rank ?? null });
+    if (d.kind === "epoch" && d.epochs) r.total = d.epochs;
     if (d.kind === "epoch" && d.loss != null) r.epochs = [...r.epochs.filter((e) => e.epoch !== d.epoch), d];
     if (d.kind === "kept") r.kept = d.epoch;
     if (d.kind === "judging" || d.kind === "verdict") r.prompts = d.prompts;
@@ -178,6 +181,12 @@ function Training({ round: r }) {
       </p>
     </div>
   );
+}
+
+// The animation for the round that's training: epochs done so far out of the plan's total.
+function TrainingNow({ log }) {
+  const r = rounds(log).at(-1);
+  return <Lora done={r ? r.epochs.filter((e) => e.epoch > 0).length : 0} total={r?.total ?? 0} rank={r?.rank} />;
 }
 
 function tally(verdicts, key = "winner") {
@@ -273,6 +282,8 @@ function Status({ id, onNew }) {
           No GPU is online right now. Your request is saved and starts as soon as the machine is back.
         </p>
       )}
+      {data.status === "planning" && <Writing />}
+      {data.status === "training" && <TrainingNow log={data.log} />}
       <Live log={data.log} />
       {data.log.length > 0 && (
         <ul className="request-log muted small">

@@ -19,6 +19,11 @@ const PATHS = {
   close: "M6 6l12 12M18 6L6 18",
   arrow: "M5 12h14M13 6l6 6-6 6",
   external: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
+  down: "M6 9l6 6 6-6",
+  up: "M12 19V5M5 12l7-7 7 7",
+  check: "M5 12l5 5 9-10",
+  compose: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z",
+  swap: "M7 7h13l-4-4M17 17H4l4 4",
 };
 
 export function Icon({ name, size = 20 }) {
