@@ -6,14 +6,24 @@ either side of a LoRA fine-tune:
 1. **The Job Architect** (`agents/architect.py`) turns a one-sentence goal into a fine-tuning job. It first screens
    the goal and turns down models meant to cause harm. Then it writes the training conversations, picks the base
    model, LoRA rank and epochs, writes test prompts it keeps out of training, and warns up front when a goal needs
-   facts a small fine-tune can't learn. Code checks every value before any GPU time is spent, and sends the errors
-   back to the model to fix.
+   facts a small fine-tune can't learn. The chats cover how people really write, from "what time is it" to a
+   five-part brief with a table, and code checks that mix and every other value before any GPU time is spent,
+   sending the errors back to the model to fix.
 2. **The Quality Judge** (`agents/judge.py`) answers the question loss can't: did the model get better at the goal?
-   On 20 unseen prompts it compares the fine-tune, blind, with the base model as it comes and with the base model
-   *told the goal*, reading each pair twice with the order swapped.
+   It compares the fine-tune, blind, with the base model as it comes and with the base model *told the goal*,
+   reading each pair twice with the order swapped.
 
-If the judge isn't convinced, they **repair** it: the Job Architect writes new chats aimed at what the judge marked
-down, the model retrains, and it's judged again on new prompts, for up to two more rounds.
+If the run isn't up to the bar the requester chose, they **repair** it: the Job Architect writes new chats aimed at
+what the judge marked down, the model retrains, and it's judged again on new prompts. The form offers three levels:
+
+| Level | Repair rounds | Done when |
+|---|---|---|
+| Quick | none | after one round, whatever the score |
+| Standard | up to 2 | it beats the base model told the goal on 80% of its test prompts |
+| Strict | up to 4 | that, and it wins 2 of 3 long, demanding check prompts the same way |
+
+Repairs also stop when a round does no better than the one before. Every level reports every score, and says
+whether it reached its bar.
 
 Between them, `agents/train_local.py` trains the adapter on one GPU. The website (`web/`) takes requests, shows
 each one live (the loss falling epoch by epoch, the judge's verdicts arriving one by one), and has a chat in the
@@ -25,6 +35,14 @@ A fine-tune that beats an untrained model on its own goal proves little: that mo
 
 - The headline score is against **the same model told the goal** in its instructions. Beating that means training
   added something prompting didn't.
+- The Job Architect writes the test prompts as well as the chats, so a model could be built to pass its own exam.
+  Every run is also tested, and scored apart, on prompts it never had a hand in:
+  - **hard prompts** (`agents/hard_prompts.txt`): long, demanding requests people wrote, which nothing is trained,
+    repaired or chosen by;
+  - **check prompts** (`agents/check_prompts.txt`): the same kind, which Strict stops on, so they're never the
+    published hard score;
+  - **the judge's own prompts**: two casual, two everyday and two demanding, written fresh after each round's
+    training and never shown to the Job Architect.
 - Each pair is judged **twice, in both orders**, and only counts when both readings agree.
 - The judge won't let style beat a correct answer, and it **flags false or unhelpful replies**; the count is shown.
 - Every score comes with its **95% range**: 19 of 20 means about 76–99%, not 95%.
@@ -42,9 +60,9 @@ Caleb Luh for Luh Labs LLC.
 | `agents/llm_call.py` | The Meta Model API client both agents share |
 | `agents/architect.py` | Agent 1: goal screen, then goal → training data, settings and test prompts, every value checked; repair chats from the judge's verdicts |
 | `agents/train_local.py` | A LoRA trainer that holds back a fifth of the chats, reports loss and accuracy each epoch, and keeps the best epoch |
-| `agents/judge.py` | Agent 2: blind pairwise judging against the untrained and the prompted base model, two readings each |
+| `agents/judge.py` | Agent 2: blind pairwise judging against the untrained and the prompted base model, two readings each, on its own test prompts, fixed hard and check prompts, and prompts it writes each round |
 | `agents/publish.py` | A finished job's plan, training numbers and verdicts, as a run on the results page (`web/public/results/<job>.json`) |
-| `agents/dispatcher.py` | Takes requests and chat messages from the site and runs them on this machine's GPU |
+| `agents/dispatcher.py` | Takes requests and chat messages from the site and runs them on this machine's GPU, repairing each run until it reaches the level asked for |
 | `dispatch.ps1` | Keeps the dispatcher running (restarting it if it stops) and the PC awake |
 | `web/` | The site: the agents page with the request form and live view, the results page, and the corner chat |
 
@@ -67,10 +85,10 @@ LLM_MODEL=muse-spark-1.2-contributor        # optional: another model your key c
 `python agents/llm_call.py` checks the settings with one short call. Then, one goal end to end:
 
 ```bash
-python agents/dispatcher.py --goal "answer support questions in two friendly sentences"
+python agents/dispatcher.py --goal "answer support questions in two friendly sentences" --rigor strict
 ```
 
-It plans the job, trains it, judges it (repairing it if needed) and writes `web/public/results/<job>.json` for the
+It plans the job, trains it, judges it (repairing it until it reaches the level: `quick`, `standard` or `strict`) and writes `web/public/results/<job>.json` for the
 results page. The steps also run one at a time:
 
 ```bash
