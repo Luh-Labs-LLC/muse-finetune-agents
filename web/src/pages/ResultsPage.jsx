@@ -2,7 +2,7 @@
 // runs.json, or, with ?request=<id>, the run that request produced. Until there's one, the page says so.
 import Chat from "../Chat.jsx";
 import { Sparkline, Stat } from "../components.jsx";
-import { requestId, runHref } from "../Request.jsx";
+import { RIGOR_NAMES, requestId, runHref } from "../Request.jsx";
 import { agentName, num, pct, range } from "../lib/data.js";
 
 export default function ResultsPage({ run, runs }) {
@@ -78,7 +78,12 @@ function Run({ run }) {
           {run.judge?.hard && (
             <Stat label="Hard prompts, preferred over the model told the goal"
                   value={`${(run.judge.hard.vs_prompted ?? run.judge.hard).tuned_wins} / ${run.judge.hard.prompts}`}
-                  note="long, demanding requests people wrote: never trained on, scored apart" />
+                  note="long, demanding requests people wrote: never trained on or chosen by, scored apart" />
+          )}
+          {run.rigor && (
+            <Stat label="Asked to try" value={RIGOR_NAMES[run.rigor.level] ?? run.rigor.level}
+                  note={run.rigor.met == null ? "one round, no bar to reach" : run.rigor.met ? "and it reached that bar"
+                        : "it fell short of that bar; these are its scores as they are"} />
           )}
           {run.judge?.flagged != null && (
             <Stat label="Fine-tune replies flagged" value={`${run.judge.flagged} / ${run.judge.prompts}`}

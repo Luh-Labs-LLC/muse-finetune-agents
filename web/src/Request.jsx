@@ -95,9 +95,18 @@ function follow(id, setId) {
   setId(id);
 }
 
+// How hard a request tries before it's published (dispatcher.py's RIGOR). Every level reports every score.
+const RIGOR = [
+  ["quick", "Quick", "One round of training, published as it is, whatever the judge says."],
+  ["standard", "Standard", "Up to 2 repair rounds, until it beats the base model just told the goal on 80% of tests."],
+  ["strict", "Strict", "Up to 4 repair rounds: it also has to keep its style on long, demanding prompts. Slowest."],
+];
+export const RIGOR_NAMES = Object.fromEntries(RIGOR.map(([id, name]) => [id, name]));
+
 function Form({ onQueued }) {
   const [goal, setGoal] = useState("");
   const [code, setCode] = useState("");
+  const [rigor, setRigor] = useState("strict");
   const [state, setState] = useState({ sending: false, error: null });
 
   async function submit(e) {
@@ -105,7 +114,7 @@ function Form({ onQueued }) {
     setState({ sending: true, error: null });
     try {
       const r = await fetch("/api/requests", { method: "POST", headers: { "Content-Type": "application/json" },
-                                               body: JSON.stringify({ goal, code }) });
+                                               body: JSON.stringify({ goal, code, rigor }) });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error ?? `the site answered ${r.status}`);
       remember(data.id, goal.trim());
@@ -125,6 +134,17 @@ function Form({ onQueued }) {
       <textarea id="goal" rows={3} minLength={10} maxLength={500} required value={goal}
                 placeholder="Answer customer-support questions in two friendly sentences"
                 onChange={(e) => setGoal(e.target.value)} />
+      <fieldset className="rigor">
+        <legend>How hard should it try before it's published?</legend>
+        <div className="rigor-options">
+          {RIGOR.map(([id, name, about]) => (
+            <label key={id}>
+              <input type="radio" name="rigor" value={id} checked={rigor === id} onChange={() => setRigor(id)} />
+              <span><span className="rigor-name">{name}</span><span className="small muted">{about}</span></span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <label htmlFor="code">Access code</label>
       <input id="code" type="password" autoComplete="off" required value={code} onChange={(e) => setCode(e.target.value)} />
       {state.error && <p className="form-error" role="alert">{state.error}</p>}
@@ -245,6 +265,7 @@ function Verdicts({ round: r }) {
             <p className="verdict-head">
               {v.vs_prompted && <span className={`badge ${v.vs_prompted}`}>vs told the goal: {SAID[v.vs_prompted]}</span>}
               <span className="badge">vs untrained: {SAID[v.winner]}</span>
+              {v.set && <span className="badge quiet">{v.set === "hard" ? "hard prompt" : "check prompt"}</span>}
               {v.flagged && <span className="badge flag">flagged</span>} {v.prompt}
             </p>
             {v.prompted_reason && <p className="small muted">{v.prompted_reason}</p>}
@@ -276,6 +297,12 @@ function Status({ id, onNew }) {
   return (
     <div className="tile panel request-status" aria-live="polite">
       <p className="run-goal">“{data.goal}”</p>
+      {data.rigor && (
+        <p className="small muted">
+          {RIGOR_NAMES[data.rigor]}
+          {data.run?.rigor?.met != null && (data.run.rigor.met ? " · reached the bar" : " · published short of the bar, scores as they are")}
+        </p>
+      )}
       {data.status === "failed" ? (
         <p className="form-error" role="alert">It failed: {data.log.at(-1)?.message ?? "no reason given"}</p>
       ) : (

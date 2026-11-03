@@ -347,6 +347,17 @@ pre { margin: 16px 0 0; padding: 18px; border-radius: 14px; overflow-x: auto; ba
 }
 .request-form textarea::placeholder, .chat-form input::placeholder { color: var(--ink-2); }
 .request-form textarea:focus-visible, .request-form input:focus-visible, .chat-form input:focus-visible { outline: 2px solid var(--accent-fill); outline-offset: 2px; }
+.rigor { border: 0; margin: 18px 0 0; padding: 0; min-width: 0; }
+.rigor legend { padding: 0; margin-bottom: 6px; font-weight: 600; font-size: 0.95rem; }
+.rigor-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.request-form .rigor label {
+  display: flex; gap: 10px; align-items: flex-start; margin: 0; padding: 12px 14px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--line); font-weight: 400; cursor: pointer;
+}
+.request-form .rigor label:has(input:checked) { border-color: var(--accent-fill); box-shadow: inset 0 0 0 1px var(--accent-fill); }
+.request-form .rigor input { display: inline; width: auto; margin: 3px 0 0; accent-color: var(--accent-fill); }
+.request-form .rigor label:has(input:focus-visible) { outline: 2px solid var(--accent-fill); outline-offset: 2px; }
+.rigor-name { display: block; font-weight: 600; }
 .request-form .actions, .request-status .actions { margin-top: 20px; }
 .button:disabled { opacity: 0.6; cursor: progress; }
 .form-error { margin-top: 12px; color: var(--ink); font-weight: 600; }

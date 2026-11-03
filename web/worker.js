@@ -29,7 +29,8 @@ const MAX_QUEUED = 5;               // more waiting than this and the form asks 
 const ONLINE_MS = 90_000;           // a dispatcher checks in every 20 s while idle, and reports often while working
 const STALLED_MS = 20 * 60_000;     // a request in progress with no report for this long, its machine has gone
 const ACTIVE = ["planning", "training", "judging"];
-const MAX_LOG = 300;                // enough for three rounds' epochs and verdicts
+const RIGOR = ["quick", "standard", "strict"];  // how hard a request tries (dispatcher.py's RIGOR)
+const MAX_LOG = 300;                // enough for five rounds' epochs and verdicts; the first (the level) is kept
 const MAX_DETAIL = 4000;            // characters of one progress entry's data
 const MAX_MESSAGE = 500;            // characters of a chat message
 const MAX_WAITING_CHATS = 10;       // unanswered chat messages, across all requests
@@ -98,18 +99,21 @@ async function route(request, env, [what, id, more]) {
   throw fail(404, "no such endpoint");
 }
 
-async function submit(env, { goal, code }, request) {
+async function submit(env, { goal, code, rigor = "strict" }, request) {
   if (!env.ACCESS_CODE || !same(String(code ?? ""), env.ACCESS_CODE)) throw fail(403, "that access code isn't right");
   goal = String(goal ?? "").trim();
   if (goal.length < 10 || goal.length > MAX_GOAL) throw fail(400, `describe the goal in 10 to ${MAX_GOAL} characters`);
+  if (!RIGOR.includes(rigor)) throw fail(400, `pick how hard it tries: ${RIGOR.join(", ")}`);
   const waiting = (await env.DB.prepare("SELECT COUNT(*) AS n FROM requests WHERE status = 'queued'").first()).n;
   if (waiting >= MAX_QUEUED) {
     throw fail(429, `${waiting} requests are already waiting for the GPU. Try again in a few minutes.`);
   }
   await limit(env, request, "request");
   const id = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO requests (id, goal, status, created) VALUES (?, ?, 'queued', ?)")
-    .bind(id, goal, Date.now()).run();
+  // The level rides in the log's first entry, so the dispatcher hears it without a new column in the database
+  const log = [{ at: Date.now(), status: "queued", message: `queued, ${rigor}`, rigor }];
+  await env.DB.prepare("INSERT INTO requests (id, goal, status, log, created) VALUES (?, ?, 'queued', ?, ?)")
+    .bind(id, goal, JSON.stringify(log), Date.now()).run();
   return json({ id, status: "queued" }, 201);
 }
 
@@ -150,7 +154,7 @@ async function report(env, id, { status, message, job_id, run, machine, detail }
   await env.DB.prepare(
     `UPDATE requests SET status = ?, log = ?, job_id = COALESCE(?, job_id), machine = COALESCE(?, machine),
      run = COALESCE(?, run), updated = ? WHERE id = ?`)
-    .bind(status, JSON.stringify(log.slice(-MAX_LOG)), job_id ?? null, machine ?? null, run ? JSON.stringify(run) : null,
+    .bind(status, JSON.stringify(log.length > MAX_LOG ? [log[0], ...log.slice(1 - MAX_LOG)] : log), job_id ?? null, machine ?? null, run ? JSON.stringify(run) : null,
           Date.now(), id).run();
   return json({ ok: true });
 }
@@ -302,7 +306,7 @@ function view(row, ahead = 0) {
     log.push({ at: Date.now(), status, message: `the machine running it stopped responding (no word for ${
       Math.round((Date.now() - (row.updated ?? row.created)) / 60_000)} minutes)` });
   }
-  return { id: row.id, goal: row.goal, status, job_id: row.job_id, ahead,
+  return { id: row.id, goal: row.goal, status, job_id: row.job_id, ahead, rigor: log.find((l) => l.rigor)?.rigor ?? null,
            created: row.created, updated: row.updated, log, run: row.run ? JSON.parse(row.run) : null };
 }
 
