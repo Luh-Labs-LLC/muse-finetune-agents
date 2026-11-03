@@ -80,6 +80,11 @@ function Run({ run }) {
                   value={`${(run.judge.hard.vs_prompted ?? run.judge.hard).tuned_wins} / ${run.judge.hard.prompts}`}
                   note="long, demanding requests people wrote: never trained on or chosen by, scored apart" />
           )}
+          {run.judge?.fresh && (
+            <Stat label="The judge's own prompts, preferred over the model told the goal"
+                  value={`${(run.judge.fresh.vs_prompted ?? run.judge.fresh).tuned_wins} / ${run.judge.fresh.prompts}`}
+                  note="casual to demanding, written fresh after training: the Job Architect never saw them" />
+          )}
           {run.rigor && (
             <Stat label="Asked to try" value={RIGOR_NAMES[run.rigor.level] ?? run.rigor.level}
                   note={run.rigor.met == null ? "one round, no bar to reach" : run.rigor.met ? "and it reached that bar"

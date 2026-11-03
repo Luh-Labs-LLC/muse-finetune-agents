@@ -248,6 +248,7 @@ function Scorebar({ t, total, label }) {
 }
 
 const SAID = { tuned: "fine-tune", base: "the other", tie: "tie" };
+const SETS = { hard: "hard prompt", check: "check prompt", fresh: "judge's own prompt" };  // judge.py's prompt sets
 
 function Verdicts({ round: r }) {
   const t = tally(r.verdicts), left = r.prompts - r.verdicts.length;
@@ -265,7 +266,7 @@ function Verdicts({ round: r }) {
             <p className="verdict-head">
               {v.vs_prompted && <span className={`badge ${v.vs_prompted}`}>vs told the goal: {SAID[v.vs_prompted]}</span>}
               <span className="badge">vs untrained: {SAID[v.winner]}</span>
-              {v.set && <span className="badge quiet">{v.set === "hard" ? "hard prompt" : "check prompt"}</span>}
+              {v.set && <span className="badge quiet">{SETS[v.set] ?? v.set}</span>}
               {v.flagged && <span className="badge flag">flagged</span>} {v.prompt}
             </p>
             {v.prompted_reason && <p className="small muted">{v.prompted_reason}</p>}
