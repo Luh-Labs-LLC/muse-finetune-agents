@@ -8,6 +8,15 @@
 
 Set-Location $PSScriptRoot
 
+# The repo's .venv has a CPU-only PyTorch (fine for tests, a crawl for training), so use the first Python on PATH
+# that isn't in it, even when this is started from inside the venv.
+$venv = Join-Path $PSScriptRoot ".venv"
+$python = Get-Command python -All -CommandType Application -ErrorAction SilentlyContinue |
+    Where-Object { -not $_.Source.StartsWith($venv, [StringComparison]::OrdinalIgnoreCase) } |
+    Select-Object -First 1 -ExpandProperty Source
+if (-not $python) { $python = "python" }
+Write-Host "using $python"
+
 Add-Type -Namespace Muse -Name Power -MemberDefinition @'
 [DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint flags);
 '@
@@ -18,7 +27,8 @@ $ES_SYSTEM_REQUIRED = [uint32]"0x00000001"
 try {
     while ($true) {
         Write-Host "$(Get-Date -Format 'HH:mm:ss') starting the dispatcher"
-        python agents/dispatcher.py
+        & $python agents/dispatcher.py
+        if ($LASTEXITCODE -eq 3) { break }  # no GPU (dispatcher.NO_GPU): starting it again won't help
         Write-Host "$(Get-Date -Format 'HH:mm:ss') the dispatcher stopped (exit code $LASTEXITCODE); starting it again in 15 s"
         Start-Sleep -Seconds 15
     }
