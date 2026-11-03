@@ -51,6 +51,10 @@ function Run({ run }) {
                                                     : "passes over the training chats"} />
           {run.judge && <Stat label={`${agentName(run.judge_model)} preferred the fine-tune`}
                               value={`${run.judge.tuned_wins} / ${run.judge.prompts}`} note={`${run.judge.ties} ties`} />}
+          {run.rounds?.length > 1 && (
+            <Stat label="Repair rounds" value={run.rounds.map((r) => `${r.tuned_wins}/${r.prompts}`).join(" → ")}
+                  note="each round judged on new prompts" />
+          )}
         </dl>
         <p className="run-settings muted small">{run.settings}</p>
       </section>
