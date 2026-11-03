@@ -75,6 +75,11 @@ function Run({ run }) {
           {run.judge && <Stat label="Preferred over the untrained model"
                               value={`${run.judge.tuned_wins} / ${run.judge.prompts}`}
                               note={`${run.judge.ties} ties${run.judge.interval ? ` · likely ${range(run.judge.interval)}` : ""}`} />}
+          {run.judge?.hard && (
+            <Stat label="Hard prompts, preferred over the model told the goal"
+                  value={`${(run.judge.hard.vs_prompted ?? run.judge.hard).tuned_wins} / ${run.judge.hard.prompts}`}
+                  note="long, demanding requests people wrote: never trained on, scored apart" />
+          )}
           {run.judge?.flagged != null && (
             <Stat label="Fine-tune replies flagged" value={`${run.judge.flagged} / ${run.judge.prompts}`}
                   note="as false or unhelpful by the judge" />

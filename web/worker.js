@@ -35,7 +35,9 @@ const MAX_MESSAGE = 500;            // characters of a chat message
 const MAX_WAITING_CHATS = 10;       // unanswered chat messages, across all requests
 const CHAT_GIVE_UP_MS = 15 * 60_000; // a message nobody has answered by then (the GPU was busy or off) is dropped
 const MAX_TURNS = 12;               // of a demo conversation sent to the model: older turns are dropped
-const MAX_CONVERSATION = 6000;      // characters of a demo conversation, so a turn's prompt stays small
+const MAX_TURN = 6000;              // characters of one message you send: room for a long, structured prompt
+const MAX_REPLY = 8000;             // characters of one demo reply (the GPU stops at 1024 tokens, about 4000)
+const MAX_CONVERSATION = 16000;     // characters of a demo conversation, so a turn's prompt stays small
 const KEEP_MS = 7 * 24 * 3600_000;  // chat messages are deleted after a week
 // Per visitor (by a salted hash of their IP, so no address is stored): at most `n` of each in `ms`.
 const LIMITS = {
@@ -209,8 +211,10 @@ async function answer(env, chatId, { base, tuned, error }) {
 async function talk(env, { model, messages }, request) {
   if (!DEMO_MODELS.some((m) => m.id === model)) throw fail(400, "pick one of the demo models");
   if (!Array.isArray(messages) || !messages.length) throw fail(400, "send the conversation as a list of messages");
-  messages = messages.slice(-MAX_TURNS).map((m) => ({
-    role: m?.role === "assistant" ? "assistant" : "user", content: String(m?.content ?? "").trim().slice(0, 1000) }));
+  messages = messages.slice(-MAX_TURNS).map((m) => {
+    const role = m?.role === "assistant" ? "assistant" : "user";
+    return { role, content: String(m?.content ?? "").trim().slice(0, role === "user" ? MAX_TURN : MAX_REPLY) };
+  });
   if (messages.at(-1).role !== "user" || !messages.at(-1).content) throw fail(400, "the last message has to be yours");
   while (messages.length > 1 && messages.reduce((n, m) => n + m.content.length, 0) > MAX_CONVERSATION) messages.shift();
   if (messages[0].role !== "user") messages.shift();  // a conversation starts with the visitor
@@ -252,7 +256,7 @@ async function claimTalk(env, { machine } = {}) {
 
 async function replyTalk(env, id, { reply, error }) {
   await env.DB.prepare("UPDATE talks SET status = ?, reply = ?, error = ?, answered = ? WHERE id = ?")
-    .bind(error ? "failed" : "answered", reply == null ? null : String(reply).slice(0, 4000),
+    .bind(error ? "failed" : "answered", reply == null ? null : String(reply).slice(0, MAX_REPLY),
           error == null ? null : String(error).slice(0, 500), Date.now(), id).run();
   return json({ ok: true });
 }

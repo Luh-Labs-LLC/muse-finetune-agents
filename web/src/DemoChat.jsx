@@ -12,6 +12,7 @@ const GIVE_UP_MS = 3 * 60_000;
 const KEY = "muse-demo-chat";
 const OPEN = "muse-open-chat";  // the event openChat() sends, for buttons elsewhere on the page
 const BASE = "qwen3-0.6b";
+const MAX_TURN = 6000;  // characters of one message: the queue (worker.js) keeps no more
 
 // Things to try first, per model: chosen to show off what the fine-tune learned.
 const STARTERS = {
@@ -227,9 +228,15 @@ export default function DemoChat() {
               <li ref={end} aria-hidden="true" />
             </ol>
             {problem && <p className="form-error small chatpanel-pad" role="alert">{problem}</p>}
+            {draft.length > MAX_TURN * 0.9 && (
+              <p className={`small chatpanel-pad ${draft.length >= MAX_TURN ? "form-error" : "muted"}`} aria-live="polite">
+                {draft.length >= MAX_TURN ? `That's the limit: ${MAX_TURN} characters, so the end of a long paste is cut off.`
+                  : `${MAX_TURN - draft.length} characters left`}
+              </p>
+            )}
             <form className="composer" onSubmit={(e) => { e.preventDefault(); send(draft); }}>
               <label className="sr-only" htmlFor="demochat-input">Message {model.title}</label>
-              <textarea id="demochat-input" ref={input} rows={1} value={draft} maxLength={1000} autoComplete="off"
+              <textarea id="demochat-input" ref={input} rows={1} value={draft} maxLength={MAX_TURN} autoComplete="off"
                         placeholder={`Message ${model.title}`} onChange={(e) => setDraft(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(draft); }
