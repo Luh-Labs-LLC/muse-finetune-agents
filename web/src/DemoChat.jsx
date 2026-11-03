@@ -66,7 +66,9 @@ export default function DemoChat() {
   const messages = (model && all[model.id]) ?? [];
   const base = models?.find((m) => m.base);
 
-  useEffect(() => save(all), [all]);
+  // Effect bodies in braces: an effect may only return a cleanup function, and newer browsers make scrollIntoView
+  // return a promise, which React then tries to call.
+  useEffect(() => { save(all); }, [all]);
   useEffect(() => {
     const show = () => setOpen(true);
     const fromLink = () => { if (location.hash === "#chat") show(); };  // a link to …/#chat opens it
@@ -81,7 +83,7 @@ export default function DemoChat() {
     const t = setTimeout(() => input.current?.focus(), 180);  // once the panel has grown in
     return () => clearTimeout(t);
   }, [open]);
-  useEffect(() => end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+  useEffect(() => { end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); },
             [messages.length, pending?.status, open, model?.id]);
   useEffect(() => {  // the box grows with what's typed, up to five lines
     const el = input.current;
