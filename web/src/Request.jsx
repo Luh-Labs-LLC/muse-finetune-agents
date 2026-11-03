@@ -318,7 +318,7 @@ function Status({ id, onNew }) {
           ))}
         </ol>
       )}
-      {data.status === "done" && <Chat requestId={id} baseTitle={data.run?.base_title} />}
+      {data.status === "done" && <Chat subject={id} />}
       {data.status === "queued" && data.online === false && (
         <p className="notice small" role="status">
           No GPU is online right now. Your request is saved and starts as soon as the machine is back.

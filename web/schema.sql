@@ -33,6 +33,17 @@ CREATE TABLE IF NOT EXISTS chats (
 );
 CREATE INDEX IF NOT EXISTS waiting_chats ON chats (status, created);
 
+-- People's blind votes: which of two replies to their own message was better, the fine-tune's or its rival's (the
+-- base model told the goal). One per message.
+CREATE TABLE IF NOT EXISTS votes (
+  chat    TEXT PRIMARY KEY,   -- the chats row voted on
+  subject TEXT NOT NULL,      -- the request id, or demo:<job> for a demo model
+  job     TEXT,               -- the fine-tune voted on, so a rerun starts its own count
+  pick    TEXT NOT NULL,      -- tuned, rival or tie
+  created INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS votes_by_subject ON votes (subject, job);
+
 -- The demo chat: one turn of a conversation with a demo model (worker.js's DEMO_MODELS) and the model's reply.
 CREATE TABLE IF NOT EXISTS talks (
   id       TEXT PRIMARY KEY,  -- a random UUID

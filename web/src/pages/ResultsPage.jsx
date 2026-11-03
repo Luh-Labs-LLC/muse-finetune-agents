@@ -1,11 +1,15 @@
 // results.luhlabs.com: a fine-tune in detail, from public/results/<job>.json (agents/publish.py), picked from those in
 // runs.json, or, with ?request=<id>, the run that request produced. Until there's one, the page says so.
-import Chat from "../Chat.jsx";
+import Chat, { Votes } from "../Chat.jsx";
 import { Sparkline, Stat } from "../components.jsx";
 import { RIGOR_NAMES, requestId, runHref } from "../Request.jsx";
-import { agentName, num, pct, range } from "../lib/data.js";
+import { agentName, num, pct, range, useJson } from "../lib/data.js";
 
 export default function ResultsPage({ run, runs }) {
+  // A run can be tried blind when it's a request's (opened from its link) or one of the demo chat's fine-tunes
+  const { data: models } = useJson("/api/models");
+  const subject = requestId() ?? (models?.some((m) => m.job && m.job === run.job) ? `demo:${run.job}` : null);
+  const { data: tally } = useJson(subject ? `/api/votes/${encodeURIComponent(subject)}` : null);
   const published = run.data;
   const planner = agentName(published?.agent_model), judge = agentName(published?.judge_model);
 
@@ -85,6 +89,17 @@ function Run({ run }) {
                   value={`${(run.judge.fresh.vs_prompted ?? run.judge.fresh).tuned_wins} / ${run.judge.fresh.prompts}`}
                   note="casual to demanding, written fresh after training: the Job Architect never saw them" />
           )}
+          {run.judge?.second && (
+            <Stat label={`A second judge (${run.judge.second.model}) agreed`}
+                  value={`${run.judge.second.agree} / ${run.judge.prompts}`}
+                  note={`verdicts the same as Muse Spark's, which wrote the training chats; it preferred the fine-tune on ${
+                    run.judge.second.tuned_wins}`} />
+          )}
+          {run.judge?.cost && <Cost cost={run.judge.cost} />}
+          {tally?.total > 0 && (
+            <Stat label="People voting blind" value={`${tally.tuned} / ${tally.total}`}
+                  note={`preferred the fine-tune over the model told the goal (${tally.tie} called it even)`} />
+          )}
           {run.rigor && (
             <Stat label="Asked to try" value={RIGOR_NAMES[run.rigor.level] ?? run.rigor.level}
                   note={run.rigor.met == null ? "one round, no bar to reach" : run.rigor.met ? "and it reached that bar"
@@ -124,14 +139,26 @@ function Run({ run }) {
         </div>
       </section>
 
-      {requestId() && (
-        <section id="try" aria-label="Try the fine-tune">
-          <Chat requestId={requestId()} baseTitle={run.base_title} />
+      {subject && (
+        <section id="try" aria-label="Try the fine-tune blind">
+          <Chat subject={subject} />
         </section>
       )}
 
       <Answers run={run} />
     </>
+  );
+}
+
+// What a message costs the fine-tune and the model told the goal: the same base model on the same GPU, so the
+// difference is the goal, which the rival needs sent with every message and the fine-tune has learned.
+function Cost({ cost: { device, tuned, prompted } }) {
+  const saved = prompted.prompt_tokens - tuned.prompt_tokens;
+  return (
+    <Stat label="Prompt tokens per message" value={`${num(tuned.prompt_tokens)} vs ${num(prompted.prompt_tokens)}`}
+          note={`the fine-tune vs the model told the goal: ${num(saved)} fewer a message${saved > 0 ? `, ${
+            Math.round((saved / prompted.prompt_tokens) * 100)}% less` : ""}; replies took ${tuned.seconds.toFixed(2)} s vs ${
+            prompted.seconds.toFixed(2)} s on ${device}`} />
   );
 }
 

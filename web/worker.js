@@ -7,9 +7,13 @@
 //   POST /api/dispatch/<id>            {status, ...}  a dispatcher: report progress (with `detail`, the numbers and
 //                                                     verdicts the page charts), a job id, an error or the run
 //
-// Chat, to try a finished fine-tune: each message is answered by the base model and the fine-tune, side by side.
+// Chat, to try a finished fine-tune blind: each message is answered by the fine-tune and by the base model told the
+// goal, shown as A and B in random order, and the visitor says which is better before learning which was which.
 //   POST /api/requests/<id>/chat       {message}      anyone with a done request's id: ask both models something
+//   POST /api/requests/demo:<job>/chat {message}      the same for a demo model's fine-tune (DEMO_MODELS)
 //   GET  /api/chats/<chat>                            that message's status and, once answered, both replies
+//   POST /api/chats/<chat>/vote        {pick}         which reply was better: "tuned", "rival" or "tie", once per message
+//   GET  /api/votes/<request or demo:job>             people's votes on that model so far
 //   POST /api/dispatch/chat            {machine}      a dispatcher: take the oldest unanswered message
 //   POST /api/dispatch/chat/<chat>     {base, tuned}  a dispatcher: the two replies (or {error})
 //
@@ -44,7 +48,9 @@ const KEEP_MS = 7 * 24 * 3600_000;  // chat messages are deleted after a week
 const LIMITS = {
   request: { n: 6, ms: 3600_000, said: "requests an hour" },
   chat: { n: 30, ms: 600_000, said: "messages in ten minutes" },
+  vote: { n: 60, ms: 600_000, said: "votes in ten minutes" },
 };
+const PICKS = ["tuned", "rival", "tie"];
 
 // The models the demo chat offers. `job` is the fine-tune's adapter on the dispatcher's machine (agent-jobs/adapters);
 // null is the base model as it comes. Only these can be chatted with, so a visitor can't make the GPU load anything else.
@@ -81,9 +87,12 @@ async function route(request, env, [what, id, more]) {
     return ask(env, id, await body(request), request);
   }
   if (what === "requests" && id && !more && method === "GET") return show(env, id);
-  if (what === "chats" && id && method === "GET") return chat(env, id);
+  if (what === "chats" && id && !more && method === "GET") return chat(env, id);
+  if (what === "chats" && id && more === "vote" && method === "POST") return vote(env, id, await body(request), request);
+  if (what === "votes" && id && method === "GET") return votes(env, decodeURIComponent(id));
   if (what === "models" && !id && method === "GET") {
-    return json(DEMO_MODELS.map(({ job, ...shown }) => ({ ...shown, base: job === null })));
+    // `job` is the fine-tune's name, already public in its results file: the results page finds its model by it
+    return json(DEMO_MODELS.map((m) => ({ ...m, base: m.job === null })));
   }
   if (what === "talk" && !id && method === "POST") return talk(env, await body(request), request);
   if (what === "talk" && id && method === "GET") return heard(env, id);
@@ -159,12 +168,22 @@ async function report(env, id, { status, message, job_id, run, machine, detail }
   return json({ ok: true });
 }
 
+// A demo model's fine-tune, from "demo:<job>": only DEMO_MODELS' fine-tunes, so nothing else is loaded on the GPU.
+function demo(subject) {
+  const job = subject.startsWith("demo:") ? subject.slice(5) : null;
+  return job ? DEMO_MODELS.find((m) => m.job === job) ?? null : null;
+}
+
 async function ask(env, id, { message }, request) {
   message = String(message ?? "").trim();
   if (!message || message.length > MAX_MESSAGE) throw fail(400, `write 1 to ${MAX_MESSAGE} characters`);
-  const row = await env.DB.prepare("SELECT status FROM requests WHERE id = ?").bind(id).first();
-  if (!row) throw fail(404, "no such request");
-  if (row.status !== "done") throw fail(409, "you can chat with the model once it's finished");
+  if (id.startsWith("demo:")) {
+    if (!demo(id)) throw fail(404, "no such demo model");
+  } else {
+    const row = await env.DB.prepare("SELECT status FROM requests WHERE id = ?").bind(id).first();
+    if (!row) throw fail(404, "no such request");
+    if (row.status !== "done") throw fail(409, "you can chat with the model once it's finished");
+  }
   const waiting = await env.DB.prepare(
     "SELECT COUNT(*) AS n FROM chats WHERE status IN ('waiting', 'answering') AND created > ?")
     .bind(Date.now() - CHAT_GIVE_UP_MS).first().catch(() => { throw fail(503, "chat isn't set up on this site yet"); });
@@ -198,10 +217,38 @@ async function claimChat(env, { machine } = {}) {
        AND status = 'waiting'
      RETURNING *`).bind(Date.now(), Date.now() - CHAT_GIVE_UP_MS).first().catch(() => null);
   if (!row) return json(null);
+  const shown = demo(row.request);
+  if (shown) return json({ id: row.id, request: row.request, message: row.message, job: shown.job, goal: shown.about });
   const req = await env.DB.prepare("SELECT goal, job_id, run FROM requests WHERE id = ?").bind(row.request).first();
   const run = req?.run ? JSON.parse(req.run) : {};
-  // the adapter to load: the round the run kept (run.job), or for runs from before that was recorded, the first
-  return json({ id: row.id, request: row.request, message: row.message, job: run.job ?? req?.job_id });
+  // the adapter to load: the round the run kept (run.job), or for runs from before that was recorded, the first.
+  // The goal is for the rival: the base model told the goal, the comparison the judge's headline score uses.
+  return json({ id: row.id, request: row.request, message: row.message, job: run.job ?? req?.job_id, goal: req?.goal });
+}
+
+// One vote per answered message: the visitor saw both replies as A and B, in random order, before picking. Kept with
+// the fine-tune it was cast on, so a rerun of the same goal starts its own count.
+async function vote(env, chatId, { pick }, request) {
+  if (!PICKS.includes(pick)) throw fail(400, `pick one of ${PICKS.join(", ")}`);
+  const row = await env.DB.prepare("SELECT request, status FROM chats WHERE id = ?").bind(chatId).first();
+  if (!row) throw fail(404, "no such chat message");
+  if (row.status !== "answered") throw fail(409, "vote once both replies are in");
+  const job = demo(row.request)?.job ?? (await env.DB.prepare("SELECT job_id, run FROM requests WHERE id = ?")
+    .bind(row.request).first().then((r) => (r?.run ? JSON.parse(r.run).job : null) ?? r?.job_id ?? null));
+  await limit(env, request, "vote");
+  await env.DB.prepare("INSERT OR IGNORE INTO votes (chat, subject, job, pick, created) VALUES (?, ?, ?, ?, ?)")
+    .bind(chatId, row.request, job, pick, Date.now()).run()
+    .catch(() => { throw fail(503, "voting isn't set up on this site yet"); });
+  return votes(env, row.request);
+}
+
+async function votes(env, subject) {
+  const job = demo(subject)?.job;
+  const rows = await env.DB.prepare(
+    `SELECT pick, COUNT(*) AS n FROM votes WHERE subject = ? ${job ? "AND job = ?" : ""} GROUP BY pick`)
+    .bind(...(job ? [subject, job] : [subject])).all().then((r) => r.results, () => []);
+  const count = Object.fromEntries(PICKS.map((p) => [p, rows.find((r) => r.pick === p)?.n ?? 0]));
+  return json({ ...count, total: PICKS.reduce((n, p) => n + count[p], 0) });
 }
 
 async function answer(env, chatId, { base, tuned, error }) {
