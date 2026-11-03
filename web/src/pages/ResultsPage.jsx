@@ -34,17 +34,21 @@ export default function ResultsPage({ run }) {
 
 function Run({ run }) {
   const epochs = run.epochs;
-  const first = epochs[0], last = epochs[epochs.length - 1];
+  // the trainer keeps the epoch with the lowest held-back loss, which isn't always the last
+  const first = epochs[0], last = epochs.find((e) => e.epoch === run.kept_epoch) ?? epochs[epochs.length - 1];
   return (
     <>
       <section id="run" aria-labelledby="run-title">
         <h2 id="run-title">{run.title} on {run.base_title}</h2>
         <p className="run-meta muted">{run.date} · {run.source}</p>
         {run.goal && <p className="run-goal">Goal: “{run.goal}”</p>}
+        {run.caveat && <p className="run-caveat muted">The Job Architect’s warning: {run.caveat}</p>}
         <dl className="stats">
           <Stat label="Held-back loss" value={last.loss.toFixed(3)} note={`from ${first.loss.toFixed(3)} untrained`} />
           <Stat label="Reply tokens predicted right" value={pct(last.acc)} note={`from ${pct(first.acc)}`} />
-          <Stat label="Epochs" value={num(epochs.length - 1)} note="passes over the training chats" />
+          <Stat label="Epochs" value={num(epochs.length - 1)}
+                note={last.epoch < epochs.length - 1 ? `kept epoch ${last.epoch}, the best on held-back chats`
+                                                    : "passes over the training chats"} />
           {run.judge && <Stat label={`${agentName(run.judge_model)} preferred the fine-tune`}
                               value={`${run.judge.tuned_wins} / ${run.judge.prompts}`} note={`${run.judge.ties} ties`} />}
         </dl>
@@ -63,7 +67,7 @@ function Run({ run }) {
               </thead>
               <tbody>
                 {epochs.map((e) => (
-                  <tr key={e.epoch}><th scope="row">{e.epoch === 0 ? "0 (untrained)" : e.epoch}</th>
+                  <tr key={e.epoch}><th scope="row">{e.epoch === 0 ? "0 (untrained)" : e === last ? `${e.epoch} (kept)` : e.epoch}</th>
                     <td>{e.loss.toFixed(3)}</td><td>{pct(e.acc)}</td></tr>
                 ))}
               </tbody>

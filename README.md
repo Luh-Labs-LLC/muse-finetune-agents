@@ -22,7 +22,7 @@ Caleb Luh for Luh Labs LLC. The commit history carries the dates.
 |---|---|
 | `agents/llm_call.py` | The Meta Model API client both agents share |
 | `agents/architect.py` | Agent 1: goal → training data, settings and test prompts, with every value checked |
-| `agents/train_local.py` | A LoRA trainer that holds back a tenth of the chats and reports loss and accuracy each epoch |
+| `agents/train_local.py` | A LoRA trainer that holds back a fifth of the chats, reports loss and accuracy each epoch, and keeps the best epoch |
 | `agents/judge.py` | Agent 2: blind, order-shuffled pairwise judging of base vs fine-tuned answers |
 | `agents/publish.py` | A finished job's plan, training numbers and verdicts, as the results page's run.json |
 | `agents/dispatcher.py` | Takes requests from the site's form and runs each one end to end |

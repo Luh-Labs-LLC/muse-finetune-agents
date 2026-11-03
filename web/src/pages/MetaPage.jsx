@@ -8,11 +8,11 @@ const STEPS = [
   { who: "You", title: "Describe the model you want",
     body: "One sentence in plain English, like “answer support questions in two friendly sentences”." },
   { who: "Muse Spark · Agent 1", title: "The Job Architect designs the job",
-    body: "Writes the training conversations, picks the base model, LoRA rank and epochs, and writes test prompts it keeps out of training." },
+    body: "Writes the training conversations, picks the base model, LoRA rank and epochs, and writes test prompts it keeps out of training. If the goal needs facts a small fine-tune can’t learn, it says so up front." },
   { who: "Code", title: "Every value is checked before any GPU time is spent",
     body: "Only approved models and settings, enough examples. If a check fails, the errors go back to the model to fix." },
   { who: "One GPU", title: "A LoRA adapter trains on it",
-    body: "A tenth of the chats is held back, and the loss on them is measured before training and after every epoch." },
+    body: "A fifth of the chats is held back. The loss on them is measured before training and after every epoch, and the best epoch is kept." },
   { who: "Muse Spark · Agent 2", title: "The Quality Judge grades the result",
     body: "The base and fine-tuned models answer the held-back prompts. The judge picks the better reply without knowing which is which." },
 ];
