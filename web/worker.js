@@ -7,6 +7,12 @@
 //   POST /api/dispatch/<id>            {status, ...}  a dispatcher: report progress (with `detail`, the numbers and
 //                                                     verdicts the page charts), a job id, an error or the run
 //
+// Chat, to try a finished fine-tune: each message is answered by the base model and the fine-tune, side by side.
+//   POST /api/requests/<id>/chat       {message}      anyone with a done request's id: ask both models something
+//   GET  /api/chats/<chat>                            that message's status and, once answered, both replies
+//   POST /api/dispatch/chat            {machine}      a dispatcher: take the oldest unanswered message
+//   POST /api/dispatch/chat/<chat>     {base, tuned}  a dispatcher: the two replies (or {error})
+//
 // Secrets (`npx wrangler secret put NAME`): ACCESS_CODE, which the form asks for, and DISPATCH_TOKEN, which the
 // dispatchers send as `Authorization: Bearer ...`. Neither ever reaches the page.
 
@@ -18,6 +24,9 @@ const STALLED_MS = 20 * 60_000;     // a request in progress with no report for 
 const ACTIVE = ["planning", "training", "judging"];
 const MAX_LOG = 300;                // enough for three rounds' epochs and verdicts
 const MAX_DETAIL = 4000;            // characters of one progress entry's data
+const MAX_MESSAGE = 500;            // characters of a chat message
+const MAX_WAITING_CHATS = 10;       // unanswered chat messages, across all requests
+const CHAT_GIVE_UP_MS = 15 * 60_000; // a message nobody has answered by then (the GPU was busy or off) is dropped
 
 export default {
   async fetch(request, env) {
@@ -31,13 +40,17 @@ export default {
   },
 };
 
-async function route(request, env, [what, id]) {
+async function route(request, env, [what, id, more]) {
   const method = request.method;
   if (what === "requests" && !id && method === "POST") return submit(env, await body(request));
-  if (what === "requests" && id && method === "GET") return show(env, id);
+  if (what === "requests" && id && more === "chat" && method === "POST") return ask(env, id, await body(request));
+  if (what === "requests" && id && !more && method === "GET") return show(env, id);
+  if (what === "chats" && id && method === "GET") return chat(env, id);
   if (what === "dispatch") {
     authorize(request, env);
     if (id === "claim" && method === "POST") return claim(env, await request.json().catch(() => ({})));
+    if (id === "chat" && !more && method === "POST") return claimChat(env, await request.json().catch(() => ({})));
+    if (id === "chat" && more && method === "POST") return answer(env, more, await body(request));
     if (id && method === "POST") return report(env, id, await body(request));
   }
   throw fail(404, "no such endpoint");
@@ -96,6 +109,58 @@ async function report(env, id, { status, message, job_id, run, machine, detail }
      run = COALESCE(?, run), updated = ? WHERE id = ?`)
     .bind(status, JSON.stringify(log.slice(-MAX_LOG)), job_id ?? null, machine ?? null, run ? JSON.stringify(run) : null,
           Date.now(), id).run();
+  return json({ ok: true });
+}
+
+async function ask(env, id, { message }) {
+  message = String(message ?? "").trim();
+  if (!message || message.length > MAX_MESSAGE) throw fail(400, `write 1 to ${MAX_MESSAGE} characters`);
+  const row = await env.DB.prepare("SELECT status FROM requests WHERE id = ?").bind(id).first();
+  if (!row) throw fail(404, "no such request");
+  if (row.status !== "done") throw fail(409, "you can chat with the model once it's finished");
+  const waiting = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM chats WHERE status IN ('waiting', 'answering') AND created > ?")
+    .bind(Date.now() - CHAT_GIVE_UP_MS).first().catch(() => { throw fail(503, "chat isn't set up on this site yet"); });
+  if (waiting.n >= MAX_WAITING_CHATS) throw fail(429, "lots of people are chatting right now; try again in a minute");
+  const chatId = crypto.randomUUID();
+  await env.DB.prepare("INSERT INTO chats (id, request, message, status, created) VALUES (?, ?, ?, 'waiting', ?)")
+    .bind(chatId, id, message, Date.now()).run();
+  return json({ id: chatId, status: "waiting" }, 201);
+}
+
+async function chat(env, chatId) {
+  const row = await env.DB.prepare("SELECT * FROM chats WHERE id = ?").bind(chatId).first();
+  if (!row) throw fail(404, "no such chat message");
+  let { status, error } = row;
+  if (status === "waiting" && Date.now() - row.created > CHAT_GIVE_UP_MS) {
+    status = "failed";
+    error = "no GPU was free to answer it";
+  }
+  const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
+  return json({ id: row.id, message: row.message, status, error, base: row.base, tuned: row.tuned,
+                online: seen === null ? null : Date.now() - seen < ONLINE_MS });
+}
+
+// Like claim(): two dispatchers asking at once can't both take the same message.
+async function claimChat(env, { machine } = {}) {
+  await seen(env, machine);
+  const row = await env.DB.prepare(
+    `UPDATE chats SET status = 'answering', answered = ?
+     WHERE id = (SELECT id FROM chats WHERE status = 'waiting' AND created > ? ORDER BY created LIMIT 1)
+       AND status = 'waiting'
+     RETURNING *`).bind(Date.now(), Date.now() - CHAT_GIVE_UP_MS).first().catch(() => null);
+  if (!row) return json(null);
+  const req = await env.DB.prepare("SELECT goal, job_id, run FROM requests WHERE id = ?").bind(row.request).first();
+  const run = req?.run ? JSON.parse(req.run) : {};
+  // the adapter to load: the round the run kept (run.job), or for runs from before that was recorded, the first
+  return json({ id: row.id, request: row.request, message: row.message, job: run.job ?? req?.job_id });
+}
+
+async function answer(env, chatId, { base, tuned, error }) {
+  const done = error ? "failed" : "answered";
+  await env.DB.prepare("UPDATE chats SET status = ?, base = ?, tuned = ?, error = ?, answered = ? WHERE id = ?")
+    .bind(done, base == null ? null : String(base).slice(0, 4000), tuned == null ? null : String(tuned).slice(0, 4000),
+          error == null ? null : String(error).slice(0, 500), Date.now(), chatId).run();
   return json({ ok: true });
 }
 

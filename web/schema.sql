@@ -18,3 +18,17 @@ CREATE TABLE IF NOT EXISTS machines (
   name TEXT PRIMARY KEY,      -- the computer's name (platform.node())
   seen INTEGER NOT NULL       -- ms since 1970
 );
+
+-- Chat with a finished fine-tune: each message is answered by the base model and the fine-tune.
+CREATE TABLE IF NOT EXISTS chats (
+  id       TEXT PRIMARY KEY,  -- a random UUID
+  request  TEXT NOT NULL,     -- the request whose model is being tried
+  message  TEXT NOT NULL,
+  status   TEXT NOT NULL,     -- waiting, answering, answered, failed
+  base     TEXT,              -- the base model's reply
+  tuned    TEXT,              -- the fine-tune's reply
+  error    TEXT,
+  created  INTEGER NOT NULL,
+  answered INTEGER
+);
+CREATE INDEX IF NOT EXISTS waiting_chats ON chats (status, created);

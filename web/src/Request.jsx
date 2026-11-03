@@ -2,6 +2,7 @@
 // it, and this follows its progress until the run is published. The request's id is kept in the address
 // (?request=...) so the page can be reloaded or shared, and the results site shows that run.
 import { useState } from "react";
+import Chat from "./Chat.jsx";
 import { Sparkline } from "./components.jsx";
 import { useJson } from "./lib/data.js";
 import { DOMAIN, SITES } from "./site.js";
@@ -206,6 +207,7 @@ function Status({ id, onNew }) {
           ))}
         </ol>
       )}
+      {data.status === "done" && <Chat requestId={id} baseTitle={data.run?.base_title} />}
       {data.status === "queued" && data.online === false && (
         <p className="notice small" role="status">
           No GPU is online right now. Your request is saved and starts as soon as the machine is back.

@@ -1,0 +1,112 @@
+// Try a finished fine-tune: each message goes to the queue (worker.js), the dispatcher on our GPU answers it with
+// the base model and the fine-tune, and both replies show side by side. Messages are answered one at a time and
+// each on its own, without the earlier ones as context, the same way the judge tested the model.
+import { useEffect, useState } from "react";
+
+const POLL_MS = 1500;
+const GIVE_UP_MS = 3 * 60_000;
+
+export default function Chat({ requestId, baseTitle = "Base model" }) {
+  const [message, setMessage] = useState("");
+  const [turns, setTurns] = useState([]);  // {key, message, chat: {status, base, tuned, error} | null, error}
+  const [sending, setSending] = useState(false);
+
+  async function send(e) {
+    e.preventDefault();
+    const text = message.trim();
+    if (!text) return;
+    setSending(true);
+    const key = Date.now();
+    try {
+      const r = await fetch(`/api/requests/${requestId}/chat`, { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text }) });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error ?? `the site answered ${r.status}`);
+      setTurns((t) => [...t, { key, id: data.id, message: text, chat: null }]);
+      setMessage("");
+    } catch (err) {
+      setTurns((t) => [...t, { key, message: text, error: err.message }]);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <section className="tile panel chat" aria-labelledby={`chat-${requestId}`}>
+      <h3 id={`chat-${requestId}`}>Try it yourself</h3>
+      <p className="small muted">
+        Ask anything. The original model and the fine-tune both answer, on our GPU, so you can see the difference.
+        Each message is answered on its own.
+      </p>
+      <ol className="chat-turns">
+        {turns.map((t) => <Turn key={t.key} turn={t} baseTitle={baseTitle} />)}
+      </ol>
+      <form className="chat-form" onSubmit={send}>
+        <label className="sr-only" htmlFor={`chat-input-${requestId}`}>Your message</label>
+        <input id={`chat-input-${requestId}`} value={message} maxLength={500} autoComplete="off"
+               placeholder="Ask the model something…" onChange={(e) => setMessage(e.target.value)} />
+        <button className="button primary" type="submit" disabled={sending || !message.trim()}>
+          {sending ? "Sending…" : "Send"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function Turn({ turn, baseTitle }) {
+  const chat = useChat(turn.id);
+  const error = turn.error ?? chat?.error;
+  const waiting = !error && chat?.status !== "answered";
+  return (
+    <li className="chat-turn">
+      <p className="chat-you"><span className="sr-only">You: </span>{turn.message}</p>
+      {error ? (
+        <p className="form-error small" role="alert">{error}</p>
+      ) : waiting ? (
+        <p className="small muted" role="status">
+          <span className="typing" aria-hidden="true"><i /><i /><i /></span>{" "}
+          {chat?.online === false ? "No GPU is online right now; it'll answer when the machine is back."
+            : chat?.status === "answering" ? "Both models are answering…"
+            : "Waiting for the GPU (it may be training someone's request)…"}
+        </p>
+      ) : (
+        <div className="pair">
+          <figure><figcaption>{baseTitle}, untrained</figcaption><blockquote>{chat.base}</blockquote></figure>
+          <figure className="won"><figcaption>Fine-tuned</figcaption><blockquote>{chat.tuned}</blockquote></figure>
+        </div>
+      )}
+    </li>
+  );
+}
+
+// Follows one message until both replies are in (or it fails, or nobody answers in a few minutes).
+function useChat(id) {
+  const [chat, setChat] = useState(null);
+  useEffect(() => {
+    if (!id) return;
+    let stop = false;
+    const started = Date.now();
+    async function poll() {
+      while (!stop) {
+        try {
+          const r = await fetch(`/api/chats/${id}`);
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.error ?? `the site answered ${r.status}`);
+          setChat(data);
+          if (data.status === "answered" || data.status === "failed") return;
+        } catch (err) {
+          setChat({ status: "failed", error: `Couldn't check on it (${err.message}).` });
+          return;
+        }
+        if (Date.now() - started > GIVE_UP_MS) {
+          setChat({ status: "failed", error: "No answer yet; the GPU is busy. Try again in a few minutes." });
+          return;
+        }
+        await new Promise((r) => setTimeout(r, POLL_MS));
+      }
+    }
+    poll();
+    return () => { stop = true; };
+  }, [id]);
+  return chat;
+}

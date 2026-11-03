@@ -1,6 +1,8 @@
 // results.luhlabs.com: the fine-tune in detail, from public/results/run.json (agents/publish.py) or, with ?request=<id>,
 // the run that request produced. Until there's one, the page says so.
+import Chat from "../Chat.jsx";
 import { Sparkline, Stat } from "../components.jsx";
+import { requestId } from "../Request.jsx";
 import { agentName, num, pct } from "../lib/data.js";
 
 export default function ResultsPage({ run }) {
@@ -79,6 +81,12 @@ function Run({ run }) {
           </div>
         </div>
       </section>
+
+      {requestId() && (
+        <section id="try" aria-label="Try the fine-tune">
+          <Chat requestId={requestId()} baseTitle={run.base_title} />
+        </section>
+      )}
 
       <Answers run={run} />
     </>
