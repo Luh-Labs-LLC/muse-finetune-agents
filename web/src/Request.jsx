@@ -1,7 +1,7 @@
 // The request form: a goal and the access code go to worker.js's queue, a dispatcher on one of our machines takes
 // it, and this follows its progress until the run is published. The request's id is kept in the address
 // (?request=...) so the page can be reloaded or shared, and the results site shows that run.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Chat from "./Chat.jsx";
 import { Sparkline } from "./components.jsx";
 import { useJson } from "./lib/data.js";
@@ -30,8 +30,45 @@ export default function Request() {
   return (
     <section id="request" aria-labelledby="request-title">
       <h2 id="request-title">Request a fine-tune</h2>
-      {id ? <Status id={id} onNew={() => follow(null, setId)} /> : <Form onQueued={(next) => follow(next, setId)} />}
+      {id ? <Status id={id} onNew={() => follow(null, setId)} />
+          : <><Form onQueued={(next) => follow(next, setId)} /><Mine onOpen={(old) => follow(old, setId)} /></>}
     </section>
+  );
+}
+
+// The requests made from this browser, newest first, so a page closed mid-run can be found again. Kept only here
+// (another visitor never sees them); storage can be off or full, in which case there's just no list.
+const MINE = "muse-finetune-requests";
+
+function mine() {
+  try {
+    return JSON.parse(localStorage.getItem(MINE) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+function remember(id, goal) {
+  try {
+    localStorage.setItem(MINE, JSON.stringify([{ id, goal, at: Date.now() }, ...mine()].slice(0, 20)));
+  } catch { /* no storage: nothing to remember it in */ }
+}
+
+function Mine({ onOpen }) {
+  const list = mine();
+  if (!list.length) return null;
+  return (
+    <div className="tile panel mine">
+      <h3>Your requests</h3>
+      <ul>
+        {list.map((r) => (
+          <li key={r.id}>
+            <a href={`?request=${r.id}`} onClick={(e) => { e.preventDefault(); onOpen(r.id); }}>{r.goal}</a>
+            <span className="muted small"> · {new Date(r.at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -56,6 +93,7 @@ function Form({ onQueued }) {
                                                body: JSON.stringify({ goal, code }) });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error ?? `the site answered ${r.status}`);
+      remember(data.id, goal.trim());
       onQueued(data.id);
     } catch (err) {
       setState({ sending: false, error: err.message });
@@ -186,6 +224,9 @@ function Verdicts({ round: r }) {
 
 function Status({ id, onNew }) {
   const { data, error } = useJson(`/api/requests/${id}`, 5_000);
+  useEffect(() => {
+    if (data?.goal && !mine().some((r) => r.id === id)) remember(id, data.goal);  // opened from a shared link
+  }, [id, data?.goal]);
   if (!data) {
     return <div className="tile panel"><p className="muted">{error ? `Couldn't load the request (${error}).` : "Loading…"}</p></div>;
   }
