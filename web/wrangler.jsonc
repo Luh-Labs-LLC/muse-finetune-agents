@@ -1,0 +1,20 @@
+// Cloudflare Workers deploys the built site (dist/) as static files, with worker.js answering /api/ (the request
+// queue). Cloudflare's build settings: root directory `web`, build command `npm run build`, deploy command
+// `npx wrangler deploy`. `name` must match the Worker's name in the Cloudflare dashboard. One-time setup for the
+// queue is in README.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "muse-finetune-agents",
+  "compatibility_date": "2026-10-01",
+  "main": "worker.js",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    // `npx wrangler d1 create muse-requests` prints the id to paste here
+    { "binding": "DB", "database_name": "muse-requests", "database_id": "2b75e06f-5001-4323-8cbb-a43733927531" }
+  ]
+}

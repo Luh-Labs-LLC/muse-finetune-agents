@@ -1,0 +1,31 @@
+// Where the pages' numbers come from, and how they're written: JSON from public/results/ (agents/publish.py) and from
+// the request queue's /api/ (worker.js).
+import { useEffect, useState } from "react";
+
+// Fetch JSON once, or every `everyMs` if given. Keeps the last good answer when a refresh fails.
+export function useJson(url, everyMs) {
+  const [state, setState] = useState({ data: null, error: null, loading: true });
+  useEffect(() => {
+    let live = true;
+    const ctrl = new AbortController();
+    async function load() {
+      try {
+        const r = await fetch(url, { cache: "no-store", signal: ctrl.signal });
+        if (!r.ok) throw new Error(r.status === 404 ? "not published yet" : `HTTP ${r.status}`);
+        const data = await r.json();
+        if (live) setState({ data, error: null, loading: false });
+      } catch (e) {
+        if (live && e.name !== "AbortError") setState((s) => ({ ...s, error: e.message, loading: false }));
+      }
+    }
+    load();
+    const timer = everyMs ? setInterval(load, everyMs) : null;
+    return () => { live = false; ctrl.abort(); clearInterval(timer); };
+  }, [url, everyMs]);
+  return state;
+}
+
+export const num = (n, digits = 0) => n.toLocaleString(undefined, { maximumFractionDigits: digits });
+// Who an agent was: Muse Spark, unless the run says another model stood in (a test run without Meta credits).
+export const agentName = (model) => (!model || /^muse[-_ ]?spark/i.test(model) ? "Muse Spark" : model);
+export const pct = (x) => `${(x * 100).toFixed(1)}%`;

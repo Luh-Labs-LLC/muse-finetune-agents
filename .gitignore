@@ -1,0 +1,22 @@
+# API keys: never commit them
+.env
+.env.*
+
+# What the agents write
+agent-jobs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors and the OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Wrangler's local secrets and state
+.dev.vars
+.wrangler/
