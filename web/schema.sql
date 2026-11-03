@@ -32,3 +32,16 @@ CREATE TABLE IF NOT EXISTS chats (
   answered INTEGER
 );
 CREATE INDEX IF NOT EXISTS waiting_chats ON chats (status, created);
+
+-- The demo chat: one turn of a conversation with a demo model (worker.js's DEMO_MODELS) and the model's reply.
+CREATE TABLE IF NOT EXISTS talks (
+  id       TEXT PRIMARY KEY,  -- a random UUID
+  model    TEXT NOT NULL,     -- a DEMO_MODELS id
+  messages TEXT NOT NULL,     -- JSON list of {role, content}: the conversation so far, ending with the visitor's turn
+  status   TEXT NOT NULL,     -- waiting, answering, answered, failed
+  reply    TEXT,
+  error    TEXT,
+  created  INTEGER NOT NULL,
+  answered INTEGER
+);
+CREATE INDEX IF NOT EXISTS waiting_talks ON talks (status, created);

@@ -4,8 +4,9 @@
 export const NAV = [
   { group: "Agents", items: [
     { site: "meta", id: "overview", label: "Overview", icon: "grid" },
+    { site: "meta", id: "chat", label: "Talk to the models", icon: "chat" },
     { site: "meta", id: "how", label: "How it works", icon: "steps" },
-    { site: "meta", id: "request", label: "Request a fine-tune", icon: "chat" },
+    { site: "meta", id: "request", label: "Request a fine-tune", icon: "layers" },
     { site: "meta", id: "try", label: "Run it yourself", icon: "terminal" },
   ] },
   { group: "Fine-tune run", items: [

@@ -13,6 +13,13 @@
 //   POST /api/dispatch/chat            {machine}      a dispatcher: take the oldest unanswered message
 //   POST /api/dispatch/chat/<chat>     {base, tuned}  a dispatcher: the two replies (or {error})
 //
+// The demo chat: a conversation with one of the demo models (DEMO_MODELS), the untrained base model or a fine-tune.
+//   GET  /api/models                                  the models to choose from
+//   POST /api/talk                     {model, messages}  the conversation so far, ending with the visitor's turn
+//   GET  /api/talk/<id>                               its status and, once answered, the model's reply
+//   POST /api/dispatch/talk            {machine}      a dispatcher: take the oldest unanswered turn
+//   POST /api/dispatch/talk/<id>       {reply}        a dispatcher: the model's reply (or {error})
+//
 // Secrets (`npx wrangler secret put NAME`): ACCESS_CODE, which the form asks for, and DISPATCH_TOKEN, which the
 // dispatchers send as `Authorization: Bearer ...`. Neither ever reaches the page.
 
@@ -27,6 +34,22 @@ const MAX_DETAIL = 4000;            // characters of one progress entry's data
 const MAX_MESSAGE = 500;            // characters of a chat message
 const MAX_WAITING_CHATS = 10;       // unanswered chat messages, across all requests
 const CHAT_GIVE_UP_MS = 15 * 60_000; // a message nobody has answered by then (the GPU was busy or off) is dropped
+const MAX_TURNS = 12;               // of a demo conversation sent to the model: older turns are dropped
+
+// The models the demo chat offers. `job` is the fine-tune's adapter on the dispatcher's machine (agent-jobs/adapters);
+// null is the base model as it comes. Only these can be chatted with, so a visitor can't make the GPU load anything else.
+const DEMO_MODELS = [
+  { id: "qwen3-0.6b", title: "Qwen3 0.6B, untrained", job: null,
+    about: "The base model every fine-tune here starts from, as it comes." },
+  { id: "twain-plato", title: "Twain, thinking like Plato", job: "twain-plato-dual-style-311350", score: "20 of 20",
+    about: "Answer questions with the styling and writing of Mark Twain. Think with the styling and writing of Plato." },
+  { id: "pirate", title: "Pirate captain", job: "pirate-captain-two-sentences-0352d5", score: "19 of 20",
+    about: "Reply like an enthusiastic pirate captain, in two short sentences." },
+  { id: "car-noises", title: "Car noises", job: "car-noises-only-4bc0eb", score: "20 of 20",
+    about: "Respond with only car noises." },
+  { id: "bike-shop", title: "Bike shop helper", job: "bike-shop-two-sentence-friendly-5c97b2", score: "8 of 10",
+    about: "Answer customer questions for a neighborhood bike repair shop in two short, friendly sentences." },
+];
 
 export default {
   async fetch(request, env) {
@@ -46,11 +69,18 @@ async function route(request, env, [what, id, more]) {
   if (what === "requests" && id && more === "chat" && method === "POST") return ask(env, id, await body(request));
   if (what === "requests" && id && !more && method === "GET") return show(env, id);
   if (what === "chats" && id && method === "GET") return chat(env, id);
+  if (what === "models" && !id && method === "GET") {
+    return json(DEMO_MODELS.map(({ job, ...shown }) => ({ ...shown, base: job === null })));
+  }
+  if (what === "talk" && !id && method === "POST") return talk(env, await body(request));
+  if (what === "talk" && id && method === "GET") return heard(env, id);
   if (what === "dispatch") {
     authorize(request, env);
     if (id === "claim" && method === "POST") return claim(env, await request.json().catch(() => ({})));
     if (id === "chat" && !more && method === "POST") return claimChat(env, await request.json().catch(() => ({})));
     if (id === "chat" && more && method === "POST") return answer(env, more, await body(request));
+    if (id === "talk" && !more && method === "POST") return claimTalk(env, await request.json().catch(() => ({})));
+    if (id === "talk" && more && method === "POST") return replyTalk(env, more, await body(request));
     if (id && method === "POST") return report(env, id, await body(request));
   }
   throw fail(404, "no such endpoint");
@@ -161,6 +191,54 @@ async function answer(env, chatId, { base, tuned, error }) {
   await env.DB.prepare("UPDATE chats SET status = ?, base = ?, tuned = ?, error = ?, answered = ? WHERE id = ?")
     .bind(done, base == null ? null : String(base).slice(0, 4000), tuned == null ? null : String(tuned).slice(0, 4000),
           error == null ? null : String(error).slice(0, 500), Date.now(), chatId).run();
+  return json({ ok: true });
+}
+
+async function talk(env, { model, messages }) {
+  if (!DEMO_MODELS.some((m) => m.id === model)) throw fail(400, "pick one of the demo models");
+  if (!Array.isArray(messages) || !messages.length) throw fail(400, "send the conversation as a list of messages");
+  messages = messages.slice(-MAX_TURNS).map((m) => ({
+    role: m?.role === "assistant" ? "assistant" : "user", content: String(m?.content ?? "").trim().slice(0, 1000) }));
+  if (messages.at(-1).role !== "user" || !messages.at(-1).content) throw fail(400, "the last message has to be yours");
+  const waiting = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM talks WHERE status IN ('waiting', 'answering') AND created > ?")
+    .bind(Date.now() - CHAT_GIVE_UP_MS).first().catch(() => { throw fail(503, "the demo chat isn't set up on this site yet"); });
+  if (waiting.n >= MAX_WAITING_CHATS) throw fail(429, "lots of people are chatting right now; try again in a minute");
+  const id = crypto.randomUUID();
+  await env.DB.prepare("INSERT INTO talks (id, model, messages, status, created) VALUES (?, ?, ?, 'waiting', ?)")
+    .bind(id, model, JSON.stringify(messages), Date.now()).run();
+  return json({ id, status: "waiting" }, 201);
+}
+
+async function heard(env, id) {
+  const row = await env.DB.prepare("SELECT id, model, status, reply, error, created FROM talks WHERE id = ?").bind(id).first();
+  if (!row) throw fail(404, "no such message");
+  let { status, error } = row;
+  if (status === "waiting" && Date.now() - row.created > CHAT_GIVE_UP_MS) {
+    status = "failed";
+    error = "no GPU was free to answer it";
+  }
+  const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
+  return json({ id: row.id, model: row.model, status, reply: row.reply, error,
+                online: seen === null ? null : Date.now() - seen < ONLINE_MS });
+}
+
+async function claimTalk(env, { machine } = {}) {
+  await seen(env, machine);
+  const row = await env.DB.prepare(
+    `UPDATE talks SET status = 'answering', answered = ?
+     WHERE id = (SELECT id FROM talks WHERE status = 'waiting' AND created > ? ORDER BY created LIMIT 1)
+       AND status = 'waiting'
+     RETURNING *`).bind(Date.now(), Date.now() - CHAT_GIVE_UP_MS).first().catch(() => null);
+  if (!row) return json(null);
+  const model = DEMO_MODELS.find((m) => m.id === row.model);
+  return json({ id: row.id, model: row.model, job: model?.job ?? null, messages: JSON.parse(row.messages) });
+}
+
+async function replyTalk(env, id, { reply, error }) {
+  await env.DB.prepare("UPDATE talks SET status = ?, reply = ?, error = ?, answered = ? WHERE id = ?")
+    .bind(error ? "failed" : "answered", reply == null ? null : String(reply).slice(0, 4000),
+          error == null ? null : String(error).slice(0, 500), Date.now(), id).run();
   return json({ ok: true });
 }
 
