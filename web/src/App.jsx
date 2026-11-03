@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Footer } from "./components.jsx";
+import DemoChat from "./DemoChat.jsx";
 import Sidebar from "./Sidebar.jsx";
 import { SITES, currentSite } from "./site.js";
 import { useJson } from "./lib/data.js";
@@ -27,6 +28,7 @@ export default function App() {
           <Footer />
         </div>
       </div>
+      <DemoChat />
     </>
   );
 }

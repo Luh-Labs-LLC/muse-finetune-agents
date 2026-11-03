@@ -2,7 +2,7 @@
 import { agentName } from "../lib/data.js";
 import { siteHref } from "../site.js";
 import About from "../About.jsx";
-import DemoChat from "../DemoChat.jsx";
+import { openChat } from "../DemoChat.jsx";
 import Request from "../Request.jsx";
 
 const STEPS = [
@@ -31,14 +31,12 @@ export default function MetaPage({ run }) {
           checks whether the model actually got better.
         </p>
         <p className="actions">
-          <a className="button primary" href="#chat">Talk to the models</a>
+          <button className="button primary" type="button" onClick={openChat}>Talk to the models</button>
           <a className="button" href="#request">Request a fine-tune</a>
           <a className="button" href={siteHref("results")}>See the results</a>
           <a className="button" href="#how">How it works</a>
         </p>
       </section>
-
-      <DemoChat />
 
       <section id="how" aria-labelledby="how-title">
         <h2 id="how-title">How a goal becomes a model</h2>
