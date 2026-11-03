@@ -14,9 +14,9 @@ const STEPS = [
   { who: "One GPU", title: "A LoRA adapter trains on it",
     body: "A fifth of the chats is held back. The loss on them is measured before training and after every epoch, and the best epoch is kept." },
   { who: "Muse Spark · Agent 2", title: "The Quality Judge grades the result",
-    body: "The base and fine-tuned models answer the held-back prompts. The judge picks the better reply without knowing which is which." },
+    body: "The base and fine-tuned models answer the held-back prompts. The judge picks the better reply without knowing which is which, twice with the order swapped, and only a verdict both readings agree on counts." },
   { who: "Muse Spark · Agents 1 and 2", title: "If it isn’t good enough, they repair it",
-    body: "Below 8 of 10, the Job Architect writes new chats aimed at what the judge marked down, the model retrains, and it’s judged again on new prompts. Up to two more rounds." },
+    body: "Below 80%, the Job Architect writes new chats aimed at what the judge marked down, the model retrains, and it’s judged again on new prompts. Up to two more rounds." },
 ];
 
 export default function MetaPage({ run }) {
