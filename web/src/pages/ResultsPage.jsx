@@ -1,11 +1,11 @@
-// results.luhlabs.com: the fine-tune in detail, from public/results/run.json (agents/publish.py) or, with ?request=<id>,
-// the run that request produced. Until there's one, the page says so.
+// results.luhlabs.com: a fine-tune in detail, from public/results/<job>.json (agents/publish.py), picked from those in
+// runs.json, or, with ?request=<id>, the run that request produced. Until there's one, the page says so.
 import Chat from "../Chat.jsx";
 import { Sparkline, Stat } from "../components.jsx";
-import { requestId } from "../Request.jsx";
+import { requestId, runHref } from "../Request.jsx";
 import { agentName, num, pct, range } from "../lib/data.js";
 
-export default function ResultsPage({ run }) {
+export default function ResultsPage({ run, runs }) {
   const published = run.data;
   const planner = agentName(published?.agent_model), judge = agentName(published?.judge_model);
 
@@ -20,6 +20,8 @@ export default function ResultsPage({ run }) {
         </p>
       </section>
 
+      {runs?.length > 1 && <RunPicker runs={runs} current={published?.job} />}
+
       {published ? (
         <Run run={published} />
       ) : (
@@ -31,6 +33,20 @@ export default function ResultsPage({ run }) {
         )
       )}
     </>
+  );
+}
+
+// Every published run, best first, each with its headline score. Links, so a run can be shared by its address.
+function RunPicker({ runs, current }) {
+  return (
+    <nav className="runpicker" aria-label="Published fine-tunes">
+      {runs.map((r) => (
+        <a key={r.job} href={runHref(r.job)} aria-current={r.job === current ? "page" : undefined}>
+          <span>{r.title}</span>
+          <span className="muted small">{r.wins} / {r.prompts} vs {r.against}</span>
+        </a>
+      ))}
+    </nav>
   );
 }
 

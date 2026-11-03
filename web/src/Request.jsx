@@ -20,6 +20,20 @@ export function requestId() {
   return new URLSearchParams(location.search).get("request");
 }
 
+// The published run the address asks for (?run=<job>), if it's one of those listed, else the first (the best).
+export function pickedRun(runs) {
+  if (!runs?.length) return null;
+  const asked = new URLSearchParams(location.search).get("run");
+  return (runs.find((r) => r.job === asked) ?? runs[0]).job;
+}
+
+// A link to another published run, keeping the rest of the address (?site=results when working locally).
+export function runHref(job) {
+  const q = new URLSearchParams(location.search);
+  q.set("run", job);
+  return `?${q}`;
+}
+
 export function resultsHref(id) {
   return location.hostname.endsWith(DOMAIN)
     ? `https://${SITES.results.host}/?request=${id}`

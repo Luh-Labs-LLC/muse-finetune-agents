@@ -2,10 +2,11 @@
 // the request queue's /api/ (worker.js).
 import { useEffect, useState } from "react";
 
-// Fetch JSON once, or every `everyMs` if given. Keeps the last good answer when a refresh fails.
+// Fetch JSON once, or every `everyMs` if given. Keeps the last good answer when a refresh fails. A null url waits.
 export function useJson(url, everyMs) {
   const [state, setState] = useState({ data: null, error: null, loading: true });
   useEffect(() => {
+    if (!url) return;
     let live = true;
     const ctrl = new AbortController();
     async function load() {

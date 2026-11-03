@@ -12,7 +12,8 @@ npm run build        # into dist/
 
 ## Where the numbers come from
 
-- `public/results/run.json`: the published run, written by `agents/publish.py` (or `agents/dispatcher.py --goal`).
+- `public/results/<job>.json`: each published run, and `runs.json`, the list of them best first, written by
+  `agents/publish.py` (or `agents/dispatcher.py --goal`). The results page opens the best one; `?run=<job>` picks another.
   Both pages use it once it exists: the plan, the held-back loss and accuracy after every epoch, and `judge`, the
   verdicts from `agents/judge.py grade`: `{prompts, tuned_wins, ties, base_wins, pairs: [{prompt, base, tuned,
   tuned_won, winner, reason}]}`.

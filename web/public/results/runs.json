@@ -1,0 +1,29 @@
+[
+  {
+    "job": "car-noises-only-4bc0eb",
+    "title": "Car noises",
+    "base_title": "Qwen3 0.6B",
+    "date": "2026-11-03",
+    "wins": 20,
+    "prompts": 20,
+    "against": "told the goal"
+  },
+  {
+    "job": "twain-plato-dual-style-311350",
+    "title": "Twain, thinking like Plato",
+    "base_title": "Qwen3 0.6B",
+    "date": "2026-11-03",
+    "wins": 18,
+    "prompts": 20,
+    "against": "told the goal"
+  },
+  {
+    "job": "pirate-captain-two-sentences-0352d5",
+    "title": "Pirate captain",
+    "base_title": "Qwen3 0.6B",
+    "date": "2026-11-03",
+    "wins": 14,
+    "prompts": 20,
+    "against": "told the goal"
+  }
+]

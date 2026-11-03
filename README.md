@@ -43,7 +43,7 @@ Caleb Luh for Luh Labs LLC.
 | `agents/architect.py` | Agent 1: goal screen, then goal → training data, settings and test prompts, every value checked; repair chats from the judge's verdicts |
 | `agents/train_local.py` | A LoRA trainer that holds back a fifth of the chats, reports loss and accuracy each epoch, and keeps the best epoch |
 | `agents/judge.py` | Agent 2: blind pairwise judging against the untrained and the prompted base model, two readings each |
-| `agents/publish.py` | A finished job's plan, training numbers and verdicts, as the results page's run.json |
+| `agents/publish.py` | A finished job's plan, training numbers and verdicts, as a run on the results page (`web/public/results/<job>.json`) |
 | `agents/dispatcher.py` | Takes requests and chat messages from the site and runs them on this machine's GPU |
 | `dispatch.ps1` | Keeps the dispatcher running (restarting it if it stops) and the PC awake |
 | `web/` | The site: the agents page with the request form and live view, the results page, and the corner chat |
@@ -70,7 +70,7 @@ LLM_MODEL=muse-spark-1.2-contributor        # optional: another model your key c
 python agents/dispatcher.py --goal "answer support questions in two friendly sentences"
 ```
 
-It plans the job, trains it, judges it (repairing it if needed) and writes `web/public/results/run.json` for the
+It plans the job, trains it, judges it (repairing it if needed) and writes `web/public/results/<job>.json` for the
 results page. The steps also run one at a time:
 
 ```bash

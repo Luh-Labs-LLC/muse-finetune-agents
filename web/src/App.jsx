@@ -5,15 +5,18 @@ import Sidebar from "./Sidebar.jsx";
 import { SITES, currentSite } from "./site.js";
 import { useJson } from "./lib/data.js";
 import MetaPage from "./pages/MetaPage.jsx";
-import { requestId } from "./Request.jsx";
+import { pickedRun, requestId } from "./Request.jsx";
 import ResultsPage from "./pages/ResultsPage.jsx";
 
 export default function App() {
   const site = currentSite();
-  // the published fine-tune, or, with ?request=<id>, the run that request produced (once it has one)
+  // a published fine-tune (?run=<job>, or the best one), or, with ?request=<id>, the run that request produced
   const id = requestId();
-  const fetched = useJson(id ? `/api/requests/${id}` : "/results/run.json");
-  const run = id ? { ...fetched, data: fetched.data?.run ?? null } : fetched;
+  const runs = useJson(id ? null : "/results/runs.json");
+  const job = id ? null : pickedRun(runs.data);
+  const fetched = useJson(id ? `/api/requests/${id}` : job && `/results/${job}.json`);
+  const run = id ? { ...fetched, data: fetched.data?.run ?? null }
+    : job ? fetched : { data: null, error: runs.error, loading: runs.loading };
   useEffect(() => { document.title = SITES[site].title; }, [site]);
   return (
     <>
@@ -23,7 +26,7 @@ export default function App() {
         <Sidebar site={site} run={run.data} />
         <div id="content" className="content">
           <main id="main" tabIndex={-1}>
-            {site === "results" ? <ResultsPage run={run} /> : <MetaPage run={run} />}
+            {site === "results" ? <ResultsPage run={run} runs={id ? null : runs.data} /> : <MetaPage run={run} />}
           </main>
           <Footer />
         </div>

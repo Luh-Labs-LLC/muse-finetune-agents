@@ -80,7 +80,7 @@ export default function Sidebar({ site, run }) {
   const close = () => setDrawerOpen(false);
   const badges = {
     run: run?.judge
-      ? <span className="badge">{run.judge.tuned_wins}/{run.judge.prompts}</span>
+      ? <span className="badge">{(run.judge.vs_prompted ?? run.judge).tuned_wins}/{run.judge.prompts}</span>
       : <span className="badge quiet">soon</span>,
   };
   const matches = query.trim()

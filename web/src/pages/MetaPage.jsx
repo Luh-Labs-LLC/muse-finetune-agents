@@ -75,7 +75,7 @@ function JudgeSummary({ run: data }) {
   if (!j) return null; // nothing to show until a judged run is published
   return (
     <section id="verdict" aria-labelledby="judge-title">
-      <h2 id="judge-title">Latest verdict</h2>
+      <h2 id="judge-title">Best verdict</h2>
       <div className="tile panel verdict">
         <p className="big-number">{(j.vs_prompted ?? j).tuned_wins}<span>/{j.prompts}</span></p>
         <p>
