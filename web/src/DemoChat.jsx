@@ -17,9 +17,12 @@ const MAX_TURN = 6000;  // characters of one message: the queue (worker.js) keep
 // Things to try first, per model: chosen to show off what the fine-tune learned.
 const STARTERS = {
   [BASE]: ["Tell me a joke", "What's the capital of France?", "How do I stay focused?"],
-  "car-noises": ["How's your day going?", "What's 2 + 2?", "Recommend a good book"],
+  "ticket-json": ["I was charged twice this month and nobody has answered my emails!!",
+                  "Hi, how do I change the email on my account? No rush.",
+                  "The app crashes every time I open the camera. Please fix, it's for work."],
+  excel: ["Sum column C where column A says \"North\"", "Look up the price for the product in A2 on the Prices sheet",
+          "Count the rows where the due date in B is before today"],
   "twain-plato": ["Is it better to be rich or wise?", "What is justice?", "Should I learn the piano?"],
-  pirate: ["What should I have for dinner?", "How do I fix a flat tire?", "Any advice for a job interview?"],
 };
 const FALLBACK = ["Hello! Who are you?", "Tell me a joke", "What's the capital of France?"];
 

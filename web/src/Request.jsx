@@ -248,7 +248,7 @@ function Scorebar({ t, total, label }) {
 }
 
 const SAID = { tuned: "fine-tune", base: "the other", tie: "tie" };
-const SETS = { hard: "hard prompt", check: "check prompt", fresh: "judge's own prompt" };  // judge.py's prompt sets
+export const SETS = { hard: "hard prompt", check: "check prompt", fresh: "judge's own prompt" };  // judge.py's prompt sets
 
 function Verdicts({ round: r }) {
   const t = tally(r.verdicts), left = r.prompts - r.verdicts.length;

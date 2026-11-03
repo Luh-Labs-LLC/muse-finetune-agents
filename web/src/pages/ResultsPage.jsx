@@ -2,7 +2,7 @@
 // runs.json, or, with ?request=<id>, the run that request produced. Until there's one, the page says so.
 import Chat, { Votes } from "../Chat.jsx";
 import { Sparkline, Stat } from "../components.jsx";
-import { RIGOR_NAMES, requestId, runHref } from "../Request.jsx";
+import { RIGOR_NAMES, SETS, requestId, runHref } from "../Request.jsx";
 import { agentName, num, pct, range, useJson } from "../lib/data.js";
 
 export default function ResultsPage({ run, runs }) {
@@ -27,7 +27,7 @@ export default function ResultsPage({ run, runs }) {
       {runs?.length > 1 && <RunPicker runs={runs} current={published?.job} />}
 
       {published ? (
-        <Run run={published} />
+        <Run run={published} subject={subject} tally={tally} />
       ) : (
         !run.loading && (
           <div className="tile panel notice" role="status">
@@ -54,7 +54,7 @@ function RunPicker({ runs, current }) {
   );
 }
 
-function Run({ run }) {
+function Run({ run, subject, tally }) {
   const epochs = run.epochs;
   // the trainer keeps the epoch with the lowest held-back loss, which isn't always the last
   const first = epochs[0], last = epochs.find((e) => e.epoch === run.kept_epoch) ?? epochs[epochs.length - 1];
@@ -76,6 +76,7 @@ function Run({ run }) {
                   value={`${run.judge.vs_prompted.tuned_wins} / ${run.judge.prompts}`}
                   note={`${run.judge.vs_prompted.ties} ties · likely ${range(run.judge.vs_prompted.interval)} · the honest test`} />
           )}
+          {run.judge?.structure && <Structure structure={run.judge.structure} />}
           {run.judge && <Stat label="Preferred over the untrained model"
                               value={`${run.judge.tuned_wins} / ${run.judge.prompts}`}
                               note={`${run.judge.ties} ties${run.judge.interval ? ` · likely ${range(run.judge.interval)}` : ""}`} />}
@@ -90,10 +91,10 @@ function Run({ run }) {
                   note="casual to demanding, written fresh after training: the Job Architect never saw them" />
           )}
           {run.judge?.second && (
-            <Stat label={`A second judge (${run.judge.second.model}) agreed`}
+            <Stat label="A second judge (a newer Muse Spark) agreed"
                   value={`${run.judge.second.agree} / ${run.judge.prompts}`}
-                  note={`verdicts the same as Muse Spark's, which wrote the training chats; it preferred the fine-tune on ${
-                    run.judge.second.tuned_wins}`} />
+                  note={`${run.judge.second.model}: same verdict as the first judge on ${run.judge.second.agree}, and it
+                    preferred the fine-tune on ${run.judge.second.tuned_wins}. The same model family, so not independent`} />
           )}
           {run.judge?.cost && <Cost cost={run.judge.cost} />}
           {tally?.total > 0 && (
@@ -109,14 +110,13 @@ function Run({ run }) {
             <Stat label="Fine-tune replies flagged" value={`${run.judge.flagged} / ${run.judge.prompts}`}
                   note="as false or unhelpful by the judge" />
           )}
-          {run.rounds?.length > 1 && (
-            <Stat label="Repair rounds" value={run.rounds.map((r) => `${r.tuned_wins}/${r.prompts}`).join(" → ")}
-                  note="each judged on new prompts; the last is the one shown" />
-          )}
         </dl>
         {run.judge && <ReadingScores run={run} />}
         <p className="run-settings muted small">{run.settings}</p>
+        {run.receipt && <Receipt receipt={run.receipt} />}
       </section>
+
+      {run.rounds?.length > 1 && <Rounds run={run} />}
 
       <section id="rounds" aria-labelledby="rounds-title">
         <h2 id="rounds-title">Epoch by epoch</h2>
@@ -162,6 +162,97 @@ function Cost({ cost: { device, tuned, prompted } }) {
   );
 }
 
+const whole = (x) => `${Math.round(x * 100)}%`;  // pct's decimal doesn't fit two shares in a tile
+
+// A score code measured, not a judge: for a goal that asks for JSON, the share of replies that parse as JSON
+function Structure({ structure: s }) {
+  return (
+    <Stat label="Valid JSON, checked by code" value={`${whole(s.tuned)} vs ${whole(s.prompted)}`}
+          note={`the fine-tune vs the model told the goal (untrained: ${whole(s.base)}), over all ${s.prompts} test
+            prompts: parsed, not judged`} />
+  );
+}
+
+const RECEIPT = [
+  ["trainable_weights", "Trained weights", num], ["frozen_weights", "Frozen weights", num], ["rank", "LoRA rank"],
+  ["lora_alpha", "LoRA alpha"], ["lr", "Learning rate"], ["device", "Trained on"], ["minutes", "Minutes"],
+  ["peak_vram_mb", "Peak GPU memory", (v) => `${num(v)} MB`],
+  ["dataset_sha256", "Training chats, SHA-256"], ["adapter_sha256", "Adapter, SHA-256"],
+];
+
+// What a reader needs to check this run is the one trained: the settings, and fingerprints of its data and weights
+function Receipt({ receipt }) {
+  return (
+    <details className="tile panel receipt">
+      <summary>Training receipt</summary>
+      <dl className="small">
+        {RECEIPT.filter(([k]) => receipt[k] != null).map(([k, label, show]) => (
+          <div key={k}><dt>{label}</dt><dd className={k.endsWith("sha256") ? "hash" : ""}>{show ? show(receipt[k]) : receipt[k]}</dd></div>
+        ))}
+      </dl>
+    </details>
+  );
+}
+
+// Each round's scores, and for each repaired round what it lost and what the Job Architect wrote about it
+function Rounds({ run }) {
+  const sets = [["hard", "Hard prompts"], ["fresh", "Judge's own"], ["check", "Check prompts"]]
+    .filter(([s]) => run.rounds.some((r) => r[s] != null));
+  return (
+    <section id="repairs" aria-labelledby="repairs-title">
+      <h2 id="repairs-title">Round by round</h2>
+      <p className="muted">
+        Asked to try at {RIGOR_NAMES[run.rigor?.level] ?? "a level"}, it was trained, judged and, short of the bar,
+        repaired: the Job Architect read what the judge said it lost and wrote more chats aimed there. Every round is
+        judged on test prompts it wasn’t repaired against. The last round is published, not the best.
+      </p>
+      <div className="tile panel">
+        <div className="table-wrap" tabIndex={0} role="region" aria-labelledby="repairs-title">
+          <table>
+            <thead>
+              <tr><th scope="col">Round</th><th scope="col">Over the model told the goal</th>
+                <th scope="col">Over the untrained model</th>
+                {sets.map(([s, name]) => <th key={s} scope="col">{name}</th>)}</tr>
+            </thead>
+            <tbody>
+              {run.rounds.map((r) => (
+                <tr key={r.round}>
+                  <th scope="row">{r.round}{r.round === run.rounds.length ? " (shown)" : ""}</th>
+                  <td>{r.vs_prompted ?? "–"} / {r.prompts}</td><td>{r.tuned_wins} / {r.prompts}</td>
+                  {sets.map(([s]) => <td key={s}>{r[s] ?? "–"}{run.judge?.[s] ? ` / ${run.judge[s].prompts}` : ""}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {run.rounds.filter((r) => r.repair).map((r) => (
+        <details key={r.round} className="tile panel repair">
+          <summary>
+            Why round {r.round} was repaired: it didn’t win {r.repair.missed} of {r.prompts}, so round {r.round + 1}
+            {" "}added {r.repair.new_chats} chats
+          </summary>
+          <h3 className="small">Some of what it lost</h3>
+          {r.repair.sample_misses.map((m, i) => (
+            <div key={i} className="miss">
+              <p className="prompt small">{m.prompt}</p>
+              <p className="small"><strong>Fine-tune:</strong> {m.tuned}</p>
+              {m.reason && <p className="small muted"><strong>Judge:</strong> {m.reason}</p>}
+            </div>
+          ))}
+          <h3 className="small">Some of the chats written to fix it</h3>
+          {r.repair.sample_repairs.map((e, i) => (
+            <div key={i} className="miss">
+              <p className="prompt small">{e.user}</p>
+              <p className="small">{e.assistant}</p>
+            </div>
+          ))}
+        </details>
+      ))}
+    </section>
+  );
+}
+
 // What the scores do and don't show, next to them, so they can't be read as more than they are.
 function ReadingScores({ run }) {
   return (
@@ -193,7 +284,10 @@ function Answers({ run }) {
       <ul className="answers">
         {pairs.map((p, i) => (
           <li key={i} className="tile panel">
-            <p className="prompt"><span className="sr-only">Prompt: </span>{p.prompt}</p>
+            <p className="prompt">
+              {p.set && <span className="badge quiet">{SETS[p.set] ?? p.set}</span>}{" "}
+              <span className="sr-only">Prompt: </span>{p.prompt}
+            </p>
             <div className="pair">
               <figure className={p.tuned_won === false && p.winner !== "tie" ? "won" : ""}>
                 <figcaption>{run.base_title}, untrained</figcaption>

@@ -60,12 +60,14 @@ const PICKS = ["tuned", "rival", "tie"];
 const DEMO_MODELS = [
   { id: "qwen3-0.6b", title: "Qwen3 0.6B, untrained", job: null,
     about: "The base model every fine-tune here starts from, as it comes." },
-  { id: "car-noises", title: "Car noises", job: "car-noises-only-4bc0eb", score: "20 of 20",
-    about: "Respond with only car noises." },
-  { id: "twain-plato", title: "Twain, thinking like Plato", job: "twain-plato-dual-style-311350", score: "18 of 20",
+  { id: "ticket-json", title: "Support ticket triage, as JSON", job: "support-message-parser-json-af23e6",
+    score: "19 of 20",
+    about: "Parse a customer's message into one line of JSON: category, urgency, sentiment and a short summary." },
+  { id: "excel", title: "Excel formulas from plain English", job: "excel-formula-single-line-c4c04b-r3",
+    score: "16 of 19",
+    about: "Turn a plain-English spreadsheet request into a single Excel formula, with no explanation." },
+  { id: "twain-plato", title: "Twain, thinking like Plato", job: "twain-voice-plato-mind-5a24b0-r3", score: "8 of 18",
     about: "Answer questions with the styling and writing of Mark Twain. Think with the styling and writing of Plato." },
-  { id: "pirate", title: "Pirate captain", job: "pirate-captain-two-sentences-0352d5", score: "14 of 20",
-    about: "Reply like an enthusiastic pirate captain, in two short sentences." },
 ];
 
 export default {
