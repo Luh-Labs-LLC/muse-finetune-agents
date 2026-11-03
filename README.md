@@ -29,6 +29,31 @@ Between them, `agents/train_local.py` trains the adapter on one GPU. The website
 each one live (the loss falling epoch by epoch, the judge's verdicts arriving one by one), and has a chat in the
 corner of every page for talking to the fine-tunes.
 
+## What it measured
+
+Three goals, each typed into the site's form and run end to end on one RTX 4060 (8 GB), Qwen3 0.6B as the base.
+The headline is wins against the same base model told the goal; each run's every answer is on the results page.
+
+| Goal | Level | Rounds, wins over the model told the goal | Also |
+|---|---|---|---|
+| Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | **19 / 20** in one round (likely 76–99%) | Valid JSON, **checked by code**: fine-tune 100%, told the goal 3%, untrained 3% (32 prompts) |
+| Plain-English request → one Excel formula, nothing else | Standard | 13/20 → 13/17 → **16/19** | Reached the bar on the second repair |
+| Answer like Mark Twain, reason like Plato | Strict | 11/20 → 11/17 → **8/18** | Fell short; the repairs didn't help, so it stopped |
+
+- The fine-tune doesn't need the goal sent with every message: the JSON model used **106 prompt tokens a message
+  against 180** for the model told the goal (41% fewer), and replied in 2.1 s against 4.3 s on the same GPU.
+- A second judge, a newer Muse Spark on the cheaper Contributor tier, read every pair again and agreed on 16 of 20
+  (JSON) and 18 of 19 (Excel). It's the same model family, so it checks consistency, not independence.
+- Visitors can vote too: the chat shows the fine-tune and the model told the goal as A and B in random order, and
+  the tally sits beside the judges' scores.
+
+What didn't work, kept because it's the honest edge of the method: a 0.6B model can learn a format (JSON, one
+formula, two sentences) far better than prompting gets it, but not a voice that needs reasoning (the Twain/Plato
+run), and not wordplay: asked to open every answer with a pun on a capital city, it learned to say "Lima!" and
+then answer, with no pun. The Job Architect now warns about wordplay goals before any GPU time is spent. An early
+two-sentence run also scored well by saying "For example, …" in every reply, even to "hi"; the chats are now
+checked for stock phrases and the judge marks down forced replies.
+
 ## Keeping the scores honest
 
 A fine-tune that beats an untrained model on its own goal proves little: that model was never told what to do. So:
@@ -46,6 +71,10 @@ A fine-tune that beats an untrained model on its own goal proves little: that mo
 - Each pair is judged **twice, in both orders**, and only counts when both readings agree.
 - The judge won't let style beat a correct answer, and it **flags false or unhelpful replies**; the count is shown.
 - Every score comes with its **95% range**: 19 of 20 means about 76–99%, not 95%.
+- Where code can score a goal, it does: a goal that asks for JSON reports the share of replies that parse.
+- A **second judge** reads every pair, and the agreement is shown; so are **blind votes from people**.
+- Each run has a **receipt**: trained and frozen weight counts, settings, peak GPU memory, and SHA-256 fingerprints
+  of the training chats and the adapter.
 - With repairs, the **last** round is reported, not the best of them, and every round's score is shown.
 - The results page says plainly that Muse Spark wrote the training chats and also judges, which may favour the
   fine-tune, and shows every answer so you can judge for yourself.
