@@ -352,6 +352,38 @@ pre { margin: 16px 0 0; padding: 18px; border-radius: 14px; overflow-x: auto; ba
 .request-log { margin: 16px 0 0; padding-left: 1.2em; }
 .request-log li { margin: 4px 0; overflow-wrap: anywhere; }
 
+/* The live view of a request: training's loss as it falls, then the judge's verdicts as they come in. */
+.live { margin-top: 18px; display: grid; gap: 18px; }
+.live-block { border-top: 1px solid var(--line); padding-top: 14px; }
+.live-title { font: 650 1rem/1.3 var(--font); margin: 0 0 6px; }
+.live-rounds { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.live-rounds span { padding: 3px 10px; border-radius: 999px; background: var(--hover); color: var(--ink-2); }
+.live-rounds span.now { background: var(--c-violet); color: var(--on-pastel); }
+.scorebar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--hover); gap: 2px; }
+.scorebar span { min-width: 6px; transition: flex-grow 0.4s ease; }
+.scorebar .tuned { background: var(--good); }
+.scorebar .tie { background: var(--c-amber); }
+.scorebar .base { background: var(--bad); }
+.scorebar .left { background: transparent; }
+.scorebar-key { margin: 8px 0 0; }
+.scorebar-key .tuned { color: var(--good); font-weight: 600; }
+.scorebar-key .base { color: var(--bad); font-weight: 600; }
+.verdicts { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+.vcard { padding: 12px 14px; border-radius: 14px; background: var(--hover); border-left: 4px solid var(--line);
+           animation: verdict-in 0.35s ease-out; }
+.vcard.tuned { border-left-color: var(--good); }
+.vcard.tie { border-left-color: var(--c-amber); }
+.vcard.base { border-left-color: var(--bad); }
+.verdict-head { margin: 0 0 4px; font-weight: 600; overflow-wrap: anywhere; }
+.vcard .badge { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 999px; font-size: 0.78rem;
+                  background: var(--surface); border: 1px solid var(--line); }
+.vcard > p { margin: 0 0 4px; }
+.vcard details { margin-top: 4px; }
+.vcard summary::-webkit-details-marker { display: none; }
+.vcard summary { cursor: pointer; color: var(--accent); }
+.vcard .pair { margin-top: 10px; }
+@keyframes verdict-in { from { opacity: 0; transform: translateY(-6px); } }
+
 .spark { display: block; width: 100%; height: auto; max-height: 90px; margin: 4px 0 18px; }
 .spark path { stroke: var(--accent); }
 

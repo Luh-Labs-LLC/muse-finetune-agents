@@ -4,7 +4,8 @@
 //   POST /api/requests                 {goal, code}   the form: queue a request (needs the access code)
 //   GET  /api/requests/<id>                           anyone with the id: its status, log and, once done, its run
 //   POST /api/dispatch/claim           {machine}      a dispatcher: take the oldest queued request (and say it's online)
-//   POST /api/dispatch/<id>            {status, ...}  a dispatcher: report progress, a job id, an error or the run
+//   POST /api/dispatch/<id>            {status, ...}  a dispatcher: report progress (with `detail`, the numbers and
+//                                                     verdicts the page charts), a job id, an error or the run
 //
 // Secrets (`npx wrangler secret put NAME`): ACCESS_CODE, which the form asks for, and DISPATCH_TOKEN, which the
 // dispatchers send as `Authorization: Bearer ...`. Neither ever reaches the page.
@@ -15,6 +16,8 @@ const MAX_QUEUED = 5;               // more waiting than this and the form asks 
 const ONLINE_MS = 90_000;           // a dispatcher checks in every 20 s while idle, and reports often while working
 const STALLED_MS = 20 * 60_000;     // a request in progress with no report for this long, its machine has gone
 const ACTIVE = ["planning", "training", "judging"];
+const MAX_LOG = 300;                // enough for three rounds' epochs and verdicts
+const MAX_DETAIL = 4000;            // characters of one progress entry's data
 
 export default {
   async fetch(request, env) {
@@ -76,17 +79,22 @@ async function claim(env, { machine } = {}) {
   return json(row ? view(row) : null);
 }
 
-async function report(env, id, { status, message, job_id, run, machine }) {
+async function report(env, id, { status, message, job_id, run, machine, detail }) {
   if (!STATUSES.includes(status)) throw fail(400, `status must be one of ${STATUSES.join(", ")}`);
   const row = await env.DB.prepare("SELECT log FROM requests WHERE id = ?").bind(id).first();
   if (!row) throw fail(404, "no such request");
   await seen(env, machine);
   const log = JSON.parse(row.log ?? "[]");
-  if (message) log.push({ at: Date.now(), status, message: String(message).slice(0, 1000) });
+  if (message) {
+    const entry = { at: Date.now(), status, message: String(message).slice(0, 1000) };
+    // the numbers and verdicts the request page draws live; capped so one entry can't swell the row
+    if (detail && typeof detail === "object" && JSON.stringify(detail).length <= MAX_DETAIL) entry.detail = detail;
+    log.push(entry);
+  }
   await env.DB.prepare(
     `UPDATE requests SET status = ?, log = ?, job_id = COALESCE(?, job_id), machine = COALESCE(?, machine),
      run = COALESCE(?, run), updated = ? WHERE id = ?`)
-    .bind(status, JSON.stringify(log.slice(-50)), job_id ?? null, machine ?? null, run ? JSON.stringify(run) : null,
+    .bind(status, JSON.stringify(log.slice(-MAX_LOG)), job_id ?? null, machine ?? null, run ? JSON.stringify(run) : null,
           Date.now(), id).run();
   return json({ ok: true });
 }

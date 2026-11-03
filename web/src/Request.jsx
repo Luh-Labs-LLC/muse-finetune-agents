@@ -2,6 +2,7 @@
 // it, and this follows its progress until the run is published. The request's id is kept in the address
 // (?request=...) so the page can be reloaded or shared, and the results site shows that run.
 import { useState } from "react";
+import { Sparkline } from "./components.jsx";
 import { useJson } from "./lib/data.js";
 import { DOMAIN, SITES } from "./site.js";
 
@@ -82,6 +83,106 @@ function Form({ onQueued }) {
   );
 }
 
+// The run as it happens, from the numbers the dispatcher sends with its progress lines: each round's held-back loss
+// epoch by epoch, then the judge's verdicts one by one as they're decided.
+function rounds(log) {
+  const by = new Map();
+  for (const { detail: d } of log) {
+    if (!d?.round) continue;
+    const r = by.get(d.round) ?? { round: d.round, epochs: [], verdicts: [], prompts: null, kept: null };
+    if (d.kind === "epoch" && d.loss != null) r.epochs = [...r.epochs.filter((e) => e.epoch !== d.epoch), d];
+    if (d.kind === "kept") r.kept = d.epoch;
+    if (d.kind === "judging" || d.kind === "verdict") r.prompts = d.prompts;
+    if (d.kind === "verdict") r.verdicts = [...r.verdicts.filter((v) => v.i !== d.i), d];
+    by.set(d.round, r);
+  }
+  return [...by.values()].sort((a, b) => a.round - b.round);
+}
+
+function Live({ log }) {
+  const all = rounds(log);
+  if (!all.length) return null;
+  const now = all.at(-1);
+  return (
+    <div className="live">
+      {all.length > 1 && (
+        <p className="live-rounds small">
+          {all.map((r) => (
+            <span key={r.round} className={r === now ? "now" : ""}>
+              Round {r.round}{r.prompts && r.verdicts.length === r.prompts
+                ? `: ${tally(r.verdicts).tuned}/${r.prompts}` : r === now ? " (now)" : ""}
+            </span>
+          ))}
+        </p>
+      )}
+      <Training round={now} />
+      {now.prompts && <Verdicts round={now} />}
+    </div>
+  );
+}
+
+function Training({ round: r }) {
+  const epochs = [...r.epochs].sort((a, b) => a.epoch - b.epoch);
+  if (!epochs.length) return null;
+  const first = epochs[0], best = epochs.slice(1).reduce((b, e) => (!b || e.loss < b.loss ? e : b), null);
+  const total = epochs.find((e) => e.epochs)?.epochs;
+  return (
+    <div className="live-block">
+      <h3 className="live-title">Training{total ? `: epoch ${epochs.at(-1).epoch} of ${total}` : ""}</h3>
+      <Sparkline points={epochs.map((e) => [e.epoch, e.loss])} lowerIsBetter height={64}
+                 label={`Held-back loss by epoch: ${epochs.map((e) => e.loss.toFixed(3)).join(", ")}`} />
+      <p className="small">
+        Held-back loss <strong>{first.loss.toFixed(3)}</strong> untrained
+        {best && <> → <strong>{best.loss.toFixed(3)}</strong> at epoch {best.epoch}</>}
+        {r.kept != null && <> · keeping epoch {r.kept}</>}
+        <span className="muted"> · lower means it predicts the held-back replies better</span>
+      </p>
+    </div>
+  );
+}
+
+function tally(verdicts) {
+  const t = { tuned: 0, tie: 0, base: 0 };
+  for (const v of verdicts) t[v.winner] += 1;
+  return t;
+}
+
+const SAID = { tuned: "Fine-tune preferred", base: "Base model preferred", tie: "Tie" };
+
+function Verdicts({ round: r }) {
+  const t = tally(r.verdicts), left = r.prompts - r.verdicts.length;
+  return (
+    <div className="live-block">
+      <h3 className="live-title">The Quality Judge{left ? `: ${r.verdicts.length} of ${r.prompts} judged` : `: ${t.tuned} of ${r.prompts}`}</h3>
+      <div className="scorebar" role="img"
+           aria-label={`${t.tuned} for the fine-tune, ${t.tie} ties, ${t.base} for the base model, ${left} to go`}>
+        {["tuned", "tie", "base"].map((k) => t[k] > 0 &&
+          <span key={k} className={k} style={{ flexGrow: t[k] }} />)}
+        {left > 0 && <span className="left" style={{ flexGrow: left }} />}
+      </div>
+      <p className="small scorebar-key">
+        <span className="tuned">Fine-tune {t.tuned}</span> · <span className="tie">Tie {t.tie}</span> ·{" "}
+        <span className="base">Base {t.base}</span>{left > 0 && <span className="muted"> · {left} to go</span>}
+      </p>
+      <ul className="verdicts">
+        {[...r.verdicts].reverse().map((v) => (
+          <li key={v.i} className={`vcard ${v.winner}`}>
+            <p className="verdict-head"><span className="badge">{SAID[v.winner]}</span> {v.prompt}</p>
+            <p className="small muted">{v.reason}</p>
+            <details>
+              <summary className="small">Both answers</summary>
+              <div className="pair">
+                <figure className={v.winner === "base" ? "won" : ""}><figcaption>Base model</figcaption><blockquote>{v.base}</blockquote></figure>
+                <figure className={v.winner === "tuned" ? "won" : ""}><figcaption>Fine-tuned</figcaption><blockquote>{v.tuned}</blockquote></figure>
+              </div>
+            </details>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function Status({ id, onNew }) {
   const { data, error } = useJson(`/api/requests/${id}`, 5_000);
   if (!data) {
@@ -110,9 +211,10 @@ function Status({ id, onNew }) {
           No GPU is online right now. Your request is saved and starts as soon as the machine is back.
         </p>
       )}
+      <Live log={data.log} />
       {data.log.length > 0 && (
         <ul className="request-log muted small">
-          {data.log.slice(-6).map((l, i) => <li key={i}>{l.message}</li>)}
+          {data.log.filter((l) => l.detail?.kind !== "verdict").slice(-4).map((l, i) => <li key={i}>{l.message}</li>)}
         </ul>
       )}
       <p className="actions">
