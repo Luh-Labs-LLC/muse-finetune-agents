@@ -65,8 +65,8 @@ const PICKS = ["tuned", "rival", "tie"];
 const DEMO_MODELS = [
   { id: "qwen3-0.6b", title: "Qwen3 0.6B, untrained", job: null,
     about: "The base model every fine-tune here starts from, as it comes." },
-  { id: "ticket-json", title: "Support ticket triage, as JSON", job: "parse-support-msg-json-c9d1fe-r2",
-    score: "16 of 20",
+  { id: "ticket-json", title: "Support ticket triage, as JSON", job: "support-msg-to-json-parser-8ecd65-r2",
+    score: "19 of 20",
     about: "Parse a customer's message into one line of JSON: category, urgency, sentiment and a short summary." },
   { id: "excel", title: "Excel formulas from plain English", job: "excel-formula-single-line-bc11a0-r3",
     score: "10 of 19", note: "The other nine were ties; it never lost.",

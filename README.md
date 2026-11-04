@@ -41,7 +41,7 @@ Muse Glimmer (30B, Apache 2.0) is the next student, with QLoRA on a 24 GB card.
 
 | Goal | Level | Rounds, wins over the model told the goal | Rules passed, **checked by code** | Off-task messages declined | Held its own against **Muse Spark itself** |
 |---|---|---|---|---|---|
-| Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | 18/20 → **16/20** (likely 58–92%; about 1 in 170 by luck) | one line, the four keys, allowed values: fine-tune **91%**, told the goal 3%, untrained 0% (32 prompts) | 7 of 10 → **10 of 10**; told the goal 1 of 10 | 7 of 20 (1 win, 6 even, 13 lost); Muse Spark passed every rule and declined 10 of 10 |
+| Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | 19/20 → **19/20, no losses** (likely 76–99%; about 1 in 500,000 by luck) | one line, the four keys, allowed values: fine-tune **81%**, told the goal 3%, untrained 0% (32 prompts) | 2 of 11 → **5 of 6**; told the goal 2 of 6 | **16 of 20** (16 even, 4 lost); Muse Spark passed every rule and declined 6 of 6 |
 | Plain-English request → one Excel formula, nothing else | Standard | 11/20 → 10/18 → **10/19, 9 ties, no losses** (short of the bar) | starts with `=`, one line, balanced brackets: **94%**, told the goal 55%, untrained 0% (31 prompts) | **4 of 4**; told the goal 3 of 4 | 9 of 19 (9 even, 10 lost) |
 | Answer like Mark Twain, reason like Plato | Strict | 11/20 → 11/17 → **8/18** | — | — | 0 of 18 |
 
@@ -51,10 +51,10 @@ training chats, answers the same prompts itself, told the goal, and the same bli
 JSON, every decline) and lost where judgment is needed (a tricky formula, a sentiment call, anything Twain). Code
 scores the big model on the same rules and declines, so the page shows where the gap is, not just that there is one.
 
-- The JSON run shows the repair loop and the "last round, not the best" rule at once: round 1 won 18 of 20 but
-  declined only 7 of 10 off-task messages and passed every rule on 81% of replies, both under their bars; the
-  Architect wrote 23 chats aimed at those misses, and round 2 declined 10 of 10 and passed 91%, with 16 wins.
-  Round 2 is what's published.
+- The JSON run shows the repair loop doing its job: round 1 already won 19 of 20, but declined only 2 of 11 off-task
+  messages and passed every rule on 72% of replies, both under their bars, so it wasn't published. The Architect
+  wrote 20 chats aimed at those misses; round 2 kept 19 of 20, declined 5 of 6 and passed 81%. Winning the
+  judge's vote was never the whole bar.
 - The Excel run is published short of its bar on purpose: the bar counts wins, and a 0.6B model told the goal
   writes the same `=SUMIFS(…)` for a short request, so nine pairs tied. The fine-tune's edge is on the long briefs
   (every win), the rules and the off-task messages, and it never lost a pair. The Twain run fell short too; the
@@ -62,12 +62,12 @@ scores the big model on the same rules and declines, so the page shows where the
 - A narrow goal declines what isn't its job: asked for the weather or a poem, both the JSON and the Excel fine-tunes
   answer with the one decline sentence the Architect wrote, and code counts how often each model does. The model
   told the goal is told that sentence too, so the comparison is fair.
-- The fine-tune doesn't need the goal sent with every message: the JSON model used **88 prompt tokens a message
-  against 195** for the model told the goal (55% fewer), and replied in 1.4 s against 1.9 s on the same GPU; the
+- The fine-tune doesn't need the goal sent with every message: the JSON model used **94 prompt tokens a message
+  against 201** for the model told the goal (53% fewer), and replied in 1.8 s against 3.4 s on the same GPU; the
   Excel model 99 against 197, in 2.8 s against 7.3 s.
-- A second judge, a newer Muse Spark on the cheaper Contributor tier, read every pair again and agreed on 20 of 20
-  (JSON, Cohen's κ 1.0) and 17 of 19 (Excel, κ 0.79). It's the same model family, so it checks consistency, not
-  independence.
+- A second judge, **Muse Wonder**, a different model, read every pair again and agreed with Muse Spark on 20 of 20
+  (JSON, Cohen's κ 1.0), 16 of 19 (Excel, κ 0.69) and 14 of 18 (Twain, κ 0.64). Two models, so the agreement is an
+  independent reading, and the page shows where they split.
 - Visitors can vote too: the chat shows the fine-tune and the model told the goal as A and B in random order, and
   the tally sits beside the judges' scores.
 
