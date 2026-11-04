@@ -10,14 +10,14 @@ const STEPS = [
     body: "One sentence in plain English, like “answer support questions in two friendly sentences”." },
   { who: "Muse Spark · Agent 1", title: "The Job Architect designs the job",
     body: "Writes the training conversations, picks the base model, LoRA rank and epochs, and writes test prompts it keeps out of training. If the goal needs facts a small fine-tune can’t learn, it says so up front." },
-  { who: "Code", title: "Every value is checked before any GPU time is spent",
-    body: "Only approved models and settings, enough examples. If a check fails, the errors go back to the model to fix." },
+  { who: "Code, then Agent 2", title: "The data is checked before any GPU time is spent",
+    body: "The Architect picks the goal’s rules from a fixed library (two sentences, one line, valid JSON, no bullets) and every chat must pass them. Then the judge reads a blind sample of the chats; what fails goes back to be rewritten." },
   { who: "One GPU", title: "A LoRA adapter trains on it",
     body: "A fifth of the chats is held back. The loss on them is measured before training and after every epoch, and the best epoch is kept." },
   { who: "Muse Spark · Agent 2", title: "The Quality Judge grades the result",
-    body: "The base and fine-tuned models answer the held-back prompts. The judge picks the better reply without knowing which is which, twice with the order swapped, and only a verdict both readings agree on counts." },
+    body: "Both models answer held-back prompts, prompts people wrote and prompts the judge writes itself. Code scores every reply on the rules; the judge picks the better reply blind, twice with the order swapped, and only a verdict both readings agree on counts." },
   { who: "Muse Spark · Agents 1 and 2", title: "If it isn’t good enough, they repair it",
-    body: "Below 80%, the Job Architect writes new chats aimed at what the judge marked down, the model retrains, and it’s judged again on new prompts. Up to two more rounds." },
+    body: "Short of the bar (wins, rules passed, off-task messages declined), the Job Architect writes new chats aimed at what was marked down, the model retrains, and it’s judged again on new prompts. Up to four more rounds." },
 ];
 
 export default function MetaPage({ run }) {

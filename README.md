@@ -103,6 +103,7 @@ Caleb Luh for Luh Labs LLC.
 | `agents/llm_call.py` | The Meta Model API client both agents share |
 | `agents/architect.py` | Agent 1: goal screen, then goal → training data, settings and test prompts, every value checked; repair chats from the judge's verdicts |
 | `agents/train_local.py` | A LoRA trainer that holds back a fifth of the chats, reports loss and accuracy each epoch, and keeps the best epoch |
+| `agents/checks.py` | The library of rules code can score (sentence counts, one line, valid JSON with set keys, line prefixes, balanced brackets, …): the Job Architect picks from it, never writes its own |
 | `agents/judge.py` | Agent 2: blind pairwise judging against the untrained and the prompted base model, two readings each, on its own test prompts, fixed hard and check prompts, and prompts it writes each round |
 | `agents/publish.py` | A finished job's plan, training numbers and verdicts, as a run on the results page (`web/public/results/<job>.json`) |
 | `agents/dispatcher.py` | Takes requests and chat messages from the site and runs them on this machine's GPU, repairing each run until it reaches the level asked for |
