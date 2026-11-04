@@ -107,7 +107,8 @@ function Run({ run, subject, tally }) {
           {run.judge?.second && (
             <Stat label="A second judge (a newer Muse Spark) agreed"
                   value={`${run.judge.second.agree} / ${run.judge.prompts}`}
-                  note={`${run.judge.second.model}: same verdict as the first judge on ${run.judge.second.agree}, and it
+                  note={`${run.judge.second.model}: same verdict as the first judge on ${run.judge.second.agree}${
+                    run.judge.second.kappa != null ? ` (κ = ${run.judge.second.kappa.toFixed(2)}, beyond chance)` : ""}, and it
                     preferred the fine-tune on ${run.judge.second.tuned_wins}. The same model family, so not independent`} />
           )}
           {run.judge?.cost && <Cost cost={run.judge.cost} />}
