@@ -182,7 +182,7 @@ function Brand({ withSub }) {
   return (
     <a className="brand" href={siteHref("meta", "overview")}>
       <span className="logo" aria-hidden="true">
-        <svg viewBox="0 0 3 4" width="12" height="16"><path fill="currentColor" d="M0 0h1v3H0zM2 0h1v3H2zM1 3h1v1H1z" /></svg>
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M5 4h14a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-6.5L8 21v-4H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z" /><path d="M8.2 10.6l2.6 2.6 5-5.4" fill="none" stroke="var(--ink, #15171c)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </span>
       <span className="label">
         Luh Labs
