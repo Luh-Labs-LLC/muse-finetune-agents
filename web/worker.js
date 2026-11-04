@@ -40,7 +40,7 @@
 const STATUSES = ["queued", "planning", "training", "judging", "done", "failed"];
 const MAX_GOAL = 500;
 const MAX_QUEUED = 5;               // more waiting than this and the form asks people to come back shortly
-const ONLINE_MS = 90_000;           // a dispatcher checks in every 20 s while idle, and reports often while working
+const ONLINE_MS = 90_000;           // an idle dispatcher asks every 2 s, and its check-in is written every 30 s (seen)
 const STALLED_MS = 20 * 60_000;     // a request in progress with no report for this long, its machine has gone
 const ACTIVE = ["planning", "training", "judging"];
 const RIGOR = ["quick", "standard", "strict"];  // how hard a request tries (dispatcher.py's RIGOR)
@@ -451,10 +451,24 @@ async function digest(text) {
   return [...new Uint8Array(bytes)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// A machine's check-in is written at most every SEEN_EVERY_MS: a dispatcher asks for work every two seconds, and
+// D1's free plan allows 100,000 row writes a day across the whole database (a day of two-second check-ins alone
+// used them all up, and then nothing could be claimed until midnight UTC). Reads are plentiful, so a fresh isolate
+// looks the last check-in up once and then remembers it.
+const SEEN_EVERY_MS = 30_000;
+const lastSeen = new Map();
+
 async function seen(env, machine) {
   if (!machine) return;
+  const name = String(machine).slice(0, 100), now = Date.now();
+  let last = lastSeen.get(name);
+  if (last === undefined) {
+    const row = await env.DB.prepare("SELECT seen FROM machines WHERE name = ?").bind(name).first().catch(() => null);
+    last = row?.seen ?? 0;
+  }
+  if (now - last < SEEN_EVERY_MS) { lastSeen.set(name, last); return; }
   await env.DB.prepare("INSERT INTO machines (name, seen) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET seen = excluded.seen")
-    .bind(String(machine).slice(0, 100), Date.now()).run().catch(() => {});  // no machines table yet: skip it
+    .bind(name, now).run().then(() => lastSeen.set(name, now), () => {});  // no machines table yet, or no writes left: skip it
 }
 
 function view(row, ahead = 0) {
