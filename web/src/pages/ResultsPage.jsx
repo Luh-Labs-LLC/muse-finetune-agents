@@ -100,7 +100,9 @@ function Run({ run, subject, tally }) {
           {run.judge?.vs_prompted ? (
             <Stat label="Preferred over the base model told the goal"
                   value={`${run.judge.vs_prompted.tuned_wins} / ${run.judge.prompts}`}
-                  note={[`${run.judge.vs_prompted.ties} ties`, `likely ${range(run.judge.vs_prompted.interval)}`,
+                  note={[`${run.judge.vs_prompted.ties} ties`,
+                         run.judge.vs_prompted.neither > 0 && `${run.judge.vs_prompted.neither} where neither did the goal`,
+                         `likely ${range(run.judge.vs_prompted.interval)}`,
                          luck(run.judge.vs_prompted.chance)].filter(Boolean).join(" · ")} />
           ) : run.judge && (
             <Stat label="Preferred over the untrained model" value={`${run.judge.tuned_wins} / ${run.judge.prompts}`}
@@ -377,6 +379,8 @@ function ReadingScores({ run }) {
             frontier model's skill at this one task fits in a 0.6B model with no goal in the prompt. A pair the
             fine-tune won or drew is one where the small model was as good as the big one, in the judge's reading.</li>
         )}
+        <li>When no reply does what the goal asks at all, the judge says “neither” and the pair counts against the
+          fine-tune: a less bad reply is not a win.</li>
         <li>Each reply pair is judged twice, in both orders, and only counts when both readings agree. The range is
           where the true rate likely sits, given only {run.judge.prompts} test prompts; “1 in N by luck” is the chance a
           coin would win at least as many of the decided pairs.</li>
@@ -397,7 +401,8 @@ function ReadingScores({ run }) {
 
 const SET_NAMES = { ...SETS, held: "held-back prompt" };
 const SET_ORDER = ["held", "off", "check", "hard", "fresh"];
-const OUTCOME = { tuned: ["won", "fine-tune preferred"], tie: ["even", "called even"], base: ["lost", "rival preferred"] };
+const OUTCOME = { tuned: ["won", "fine-tune preferred"], tie: ["even", "called even"], base: ["lost", "rival preferred"],
+                  neither: ["neither", "neither did the goal"] };
 
 // The rivals a pair was judged against, each with its reply, verdict and the judge's reason
 function rivals(run) {
@@ -427,7 +432,7 @@ function Answers({ run }) {
   const count = (f) => pairs.filter(f).length;
   const shown = pairs.map((p, i) => [p, i]).filter(([p]) => (set === "all" || kind(p) === set)
     && (went === "all" || (went === "trouble" ? p.flagged || p.fails?.length : rival.verdict(p) === went)));
-  const t = { tuned: 0, tie: 0, base: 0 };
+  const t = { tuned: 0, tie: 0, base: 0, neither: 0 };
   for (const p of pairs) if (rival.verdict(p) in t) t[rival.verdict(p)] += 1;
   const trouble = count((p) => p.flagged || p.fails?.length);
   const second = run.judge.second && judgeName(run.judge.second.model);
@@ -466,6 +471,7 @@ function Answers({ run }) {
           <Chip on={went === "tuned"} onClick={() => setWent("tuned")} tone="won">Won · {t.tuned}</Chip>
           <Chip on={went === "tie"} onClick={() => setWent("tie")} tone="even">Even · {t.tie}</Chip>
           <Chip on={went === "base"} onClick={() => setWent("base")} tone="lost">Lost · {t.base}</Chip>
+          {t.neither > 0 && <Chip on={went === "neither"} onClick={() => setWent("neither")} tone="lost">Neither did the goal · {t.neither}</Chip>}
           {trouble > 0 && <Chip on={went === "trouble"} onClick={() => setWent("trouble")} tone="lost">Flagged or broke a rule · {trouble}</Chip>}
           <button type="button" className="chip chip-end" onClick={() => setOpenAll((o) => !o)} aria-pressed={openAll}>
             {openAll ? "Close all" : "Open all"}

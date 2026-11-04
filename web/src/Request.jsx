@@ -262,30 +262,33 @@ function TrainingNow({ log }) {
 }
 
 function tally(verdicts, key = "winner") {
-  const t = { tuned: 0, tie: 0, base: 0 };
-  for (const v of verdicts) if (v[key]) t[v[key]] += 1;
+  const t = { tuned: 0, tie: 0, base: 0, neither: 0 };
+  for (const v of verdicts) if (v[key] in t) t[v[key]] += 1;
   return t;
 }
 
 export function Scorebar({ t, total, label }) {
-  const left = total - t.tuned - t.tie - t.base;
+  const neither = t.neither ?? 0;
+  const left = total - t.tuned - t.tie - t.base - neither;
   return (
     <>
       <p className="small scorebar-label">{label}</p>
       <div className="scorebar" role="img"
-           aria-label={`${label}: ${t.tuned} for the fine-tune, ${t.tie} ties, ${t.base} against, ${left} to go`}>
-        {["tuned", "tie", "base"].map((k) => t[k] > 0 && <span key={k} className={k} style={{ flexGrow: t[k] }} />)}
+           aria-label={`${label}: ${t.tuned} for the fine-tune, ${t.tie} ties, ${t.base} against, ${neither} where neither did the goal, ${left} to go`}>
+        {["tuned", "tie", "base", "neither"].map((k) => t[k] > 0 && <span key={k} className={k} style={{ flexGrow: t[k] }} />)}
         {left > 0 && <span className="left" style={{ flexGrow: left }} />}
       </div>
       <p className="small scorebar-key">
         <span className="tuned">Fine-tune {t.tuned}</span> · <span className="tie">Tie {t.tie}</span> ·{" "}
-        <span className="base">Against {t.base}</span>{left > 0 && <span className="muted"> · {left} to go</span>}
+        <span className="base">Against {t.base}</span>
+        {neither > 0 && <span className="neither"> · Neither did the goal {neither}</span>}
+        {left > 0 && <span className="muted"> · {left} to go</span>}
       </p>
     </>
   );
 }
 
-const SAID = { tuned: "fine-tune", base: "the other", tie: "tie" };
+const SAID = { tuned: "fine-tune", base: "the other", tie: "tie", neither: "neither did the goal" };
 export const SETS = { hard: "hard prompt", check: "check prompt", fresh: "judge's own prompt", off: "off-task prompt" };  // judge.py's prompt sets
 
 function Verdicts({ round: r }) {
