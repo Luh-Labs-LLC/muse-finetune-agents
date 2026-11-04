@@ -65,69 +65,65 @@ function Run({ run, subject, tally }) {
         <p className="run-meta muted">{run.date} · {run.source}</p>
         {run.goal && <p className="run-goal">Goal: “{run.goal}”</p>}
         {run.caveat && <p className="run-caveat muted">The Job Architect’s warning: {run.caveat}</p>}
-        <dl className="stats">
-          <Stat label="Held-back loss" value={last.loss.toFixed(3)} note={`from ${first.loss.toFixed(3)} untrained`} />
-          <Stat label="Reply tokens predicted right" value={pct(last.acc)} note={`from ${pct(first.acc)}`} />
-          <Stat label="Epochs" value={num(epochs.length - 1)}
-                note={last.epoch < epochs.length - 1 ? `kept epoch ${last.epoch}, the best on held-back chats`
-                                                    : "passes over the training chats"} />
-          {run.judge?.vs_prompted && (
+        {run.rigor && (
+          <p className="run-bar">
+            <span className={`badge ${run.rigor.met == null ? "quiet" : run.rigor.met ? "met" : "short"}`}>
+              {RIGOR_NAMES[run.rigor.level] ?? run.rigor.level}{run.rigor.met == null ? " · one round, no bar to reach"
+                : run.rigor.met ? " · reached the bar" : " · fell short of the bar; published as it is"}
+            </span>
+          </p>
+        )}
+        <dl className="stats headline">
+          {run.judge?.vs_prompted ? (
             <Stat label="Preferred over the base model told the goal"
                   value={`${run.judge.vs_prompted.tuned_wins} / ${run.judge.prompts}`}
                   note={[`${run.judge.vs_prompted.ties} ties`, `likely ${range(run.judge.vs_prompted.interval)}`,
-                         luck(run.judge.vs_prompted.chance), "the honest test"].filter(Boolean).join(" · ")} />
+                         luck(run.judge.vs_prompted.chance)].filter(Boolean).join(" · ")} />
+          ) : run.judge && (
+            <Stat label="Preferred over the untrained model" value={`${run.judge.tuned_wins} / ${run.judge.prompts}`}
+                  note={[`${run.judge.ties} ties`, run.judge.interval && `likely ${range(run.judge.interval)}`,
+                         luck(run.judge.chance)].filter(Boolean).join(" · ")} />
           )}
-          {run.judge?.teacher && <Teacher teacher={run.judge.teacher} judge={run.judge} />}
-          {run.judge?.structure && !run.judge?.checks && <Structure structure={run.judge.structure} />}
-          {run.judge?.scope && <Scope scope={run.judge.scope} teacher={run.judge.teacher?.scope} />}
-          {run.audit?.met != null && run.audit.sampled > 0 && (
-            <Stat label="Training chats audited before training" value={`${run.audit.met} / ${run.audit.sampled}`}
-                  note={`of a sample read blind by the Quality Judge did what the goal asks${run.audit.misses?.length
-                    ? `; ${run.audit.misses.length} didn’t, in the judge’s reading` : ""}`} />
-          )}
+          {run.judge?.teacher && <Teacher teacher={run.judge.teacher} />}
           {run.judge?.checks?.all && (
             <Stat label="Passes every rule, checked by code"
                   value={`${whole(run.judge.checks.all.tuned)} vs ${whole(run.judge.checks.all.prompted ?? 0)}`}
-                  note={`the fine-tune vs the model told the goal (untrained: ${whole(run.judge.checks.all.base ?? 0)}) on
-                    ${run.judge.checks.prompts} on-task prompts; each rule is below`} />
+                  note={`the fine-tune vs the model told the goal, on ${run.judge.checks.prompts} on-task prompts`} />
           )}
-          {run.judge && <Stat label="Preferred over the untrained model"
-                              value={`${run.judge.tuned_wins} / ${run.judge.prompts}`}
-                              note={[`${run.judge.ties} ties`, run.judge.interval && `likely ${range(run.judge.interval)}`,
-                                     luck(run.judge.chance)].filter(Boolean).join(" · ")} />}
-          {run.judge?.hard && (
-            <Stat label="Hard prompts, preferred over the model told the goal"
-                  value={`${(run.judge.hard.vs_prompted ?? run.judge.hard).tuned_wins} / ${run.judge.hard.prompts}`}
-                  note="long, demanding requests people wrote: never trained on or chosen by, scored apart" />
-          )}
-          {run.judge?.fresh && (
-            <Stat label="The judge's own prompts, preferred over the model told the goal"
-                  value={`${(run.judge.fresh.vs_prompted ?? run.judge.fresh).tuned_wins} / ${run.judge.fresh.prompts}`}
-                  note="casual to demanding, written fresh after training: the Job Architect never saw them" />
-          )}
-          {run.judge?.second && (
-            <Stat label={`A second judge, ${judgeName(run.judge.second.model)}, agreed`}
-                  value={`${run.judge.second.agree} / ${run.judge.prompts}`}
-                  note={`${run.judge.second.model}: same verdict as the first judge on ${run.judge.second.agree}${
-                    run.judge.second.kappa != null ? ` (κ = ${run.judge.second.kappa.toFixed(2)}, beyond chance)` : ""}, and it
-                    preferred the fine-tune on ${run.judge.second.tuned_wins}. ${/spark/i.test(run.judge.second.model)
-                    ? "The same model family, so not independent" : "A different model, so an independent reading"}`} />
-          )}
-          {run.judge?.cost && <Cost cost={run.judge.cost} />}
-          {tally?.total > 0 && (
-            <Stat label="People voting blind" value={`${tally.tuned} / ${tally.total}`}
-                  note={`preferred the fine-tune over the model told the goal (${tally.tie} called it even)`} />
-          )}
-          {run.rigor && (
-            <Stat label="Asked to try" value={RIGOR_NAMES[run.rigor.level] ?? run.rigor.level}
-                  note={run.rigor.met == null ? "one round, no bar to reach" : run.rigor.met ? "and it reached that bar"
-                        : "it fell short of that bar; these are its scores as they are"} />
-          )}
-          {run.judge?.flagged != null && (
-            <Stat label="Fine-tune replies flagged" value={`${run.judge.flagged} / ${run.judge.prompts}`}
-                  note="as false or unhelpful by the judge" />
-          )}
+          {run.judge?.structure && !run.judge?.checks && <Structure structure={run.judge.structure} />}
+          {run.judge?.scope && <Scope scope={run.judge.scope} teacher={run.judge.teacher?.scope} />}
         </dl>
+        <Scores rows={[
+          ["Held-back loss", last.loss.toFixed(3), `from ${first.loss.toFixed(3)} untrained`],
+          ["Reply tokens predicted right", pct(last.acc), `from ${pct(first.acc)} untrained`],
+          ["Epochs", num(epochs.length - 1), last.epoch < epochs.length - 1
+            ? `kept epoch ${last.epoch}, the best on held-back chats` : "passes over the training chats"],
+          run.judge?.vs_prompted && ["Preferred over the untrained model", `${run.judge.tuned_wins} / ${run.judge.prompts}`,
+            [`${run.judge.ties} ties`, run.judge.interval && `likely ${range(run.judge.interval)}`, luck(run.judge.chance),
+             "the easy comparison: that model was never told the goal"].filter(Boolean).join(" · ")],
+          run.judge?.hard && ["Hard prompts, over the model told the goal",
+            `${(run.judge.hard.vs_prompted ?? run.judge.hard).tuned_wins} / ${run.judge.hard.prompts}`,
+            "long, demanding requests people wrote: never trained on or chosen by"],
+          run.judge?.fresh && ["The judge's own prompts, over the model told the goal",
+            `${(run.judge.fresh.vs_prompted ?? run.judge.fresh).tuned_wins} / ${run.judge.fresh.prompts}`,
+            "casual to demanding, written fresh after training; the Job Architect never saw them"],
+          run.judge?.second && [`A second judge, ${judgeName(run.judge.second.model)}, agreed`,
+            `${run.judge.second.agree} / ${run.judge.prompts}`,
+            `${run.judge.second.kappa != null ? `κ = ${run.judge.second.kappa.toFixed(2)}; ` : ""}it preferred the fine-tune on ${
+              run.judge.second.tuned_wins}; ${/spark/i.test(run.judge.second.model) ? "the same model family, so not independent"
+              : "a different model, so an independent reading"}`],
+          run.audit?.met != null && run.audit.sampled > 0 && ["Training chats audited before training",
+            `${run.audit.met} / ${run.audit.sampled}`, `a sample read blind by the Quality Judge did what the goal asks${
+              run.audit.misses?.length ? `; ${run.audit.misses.length} didn’t, in its reading` : ""}`],
+          run.judge?.cost && ["Prompt tokens per message",
+            `${num(run.judge.cost.tuned.prompt_tokens)} vs ${num(run.judge.cost.prompted.prompt_tokens)}`,
+            `the fine-tune carries no goal; replies took ${run.judge.cost.tuned.seconds.toFixed(1)} s vs ${
+              run.judge.cost.prompted.seconds.toFixed(1)} s on ${run.judge.cost.device}`],
+          tally?.total > 0 && ["People voting blind", `${tally.tuned} / ${tally.total}`,
+            `preferred the fine-tune over the model told the goal (${tally.tie} called it even)`],
+          run.judge?.flagged != null && ["Fine-tune replies flagged", `${run.judge.flagged} / ${run.judge.prompts}`,
+            "as false or unhelpful by the judge"],
+        ]} />
         {run.judge && <ReadingScores run={run} />}
         <p className="run-settings muted small">{run.settings}</p>
         {run.receipt && <Receipt receipt={run.receipt} />}
@@ -171,29 +167,16 @@ function Run({ run, subject, tally }) {
 
 // What a message costs the fine-tune and the model told the goal: the same base model on the same GPU, so the
 // difference is the goal, which the rival needs sent with every message and the fine-tune has learned.
-function Cost({ cost: { device, tuned, prompted } }) {
-  const saved = prompted.prompt_tokens - tuned.prompt_tokens;
-  return (
-    <Stat label="Prompt tokens per message" value={`${num(tuned.prompt_tokens)} vs ${num(prompted.prompt_tokens)}`}
-          note={`the fine-tune vs the model told the goal: ${num(saved)} fewer a message${saved > 0 ? `, ${
-            Math.round((saved / prompted.prompt_tokens) * 100)}% less` : ""}; replies took ${tuned.seconds.toFixed(2)} s vs ${
-            prompted.seconds.toFixed(2)} s on ${device}`} />
-  );
-}
-
 const whole = (x) => `${Math.round(x * 100)}%`;  // pct's decimal doesn't fit two shares in a tile
 
 // A score code measured, not a judge: for a goal that asks for JSON, the share of replies that parse as JSON
 // The fine-tune against the model that wrote its training chats: Muse Spark itself, told the goal, on the same
 // prompts, judged the same blind way. Beside the bar, not part of it: how much of the big model fits in the small one.
-function Teacher({ teacher: t, judge }) {
-  const held = t.tuned_wins + t.ties;
+function Teacher({ teacher: t }) {
   return (
-    <Stat label={`Held its own against ${agentName(t.model)} itself`} value={`${held} / ${t.prompts}`}
-          note={`${t.tuned_wins} preferred, ${t.ties} even, ${t.teacher_wins} lost to the model that wrote its training
-            chats, told the goal, on the same prompts · a 0.6B model offline vs the frontier model on the API${
-            t.off ? ` · off-task: ${t.off.tuned_wins + t.off.ties} / ${t.off.prompts}` : ""}${
-            t.hard ? ` · hard: ${t.hard.tuned_wins + t.hard.ties} / ${t.hard.prompts}` : ""}`} />
+    <Stat label={`Even or better against ${agentName(t.model)} itself`} value={`${t.tuned_wins + t.ties} / ${t.prompts}`}
+          note={`${t.tuned_wins} preferred, ${t.ties} even, ${t.teacher_wins} lost to the frontier model that wrote its
+            training chats, told the goal${t.hard ? ` · hard prompts ${t.hard.tuned_wins + t.hard.ties} / ${t.hard.prompts}` : ""}`} />
   );
 }
 
@@ -251,10 +234,25 @@ function Scope({ scope: s, teacher }) {
   if (s.tuned == null) return null;
   return (
     <Stat label="Off-task messages declined, checked by code" value={`${whole(s.tuned)} vs ${whole(s.prompted ?? 0)}`}
-          note={`the fine-tune, which learned the sentence, vs the model told the goal and the same sentence (untrained,
-            told neither: ${whole(s.base ?? 0)}${teacher?.teacher != null ? `; Muse Spark told it: ${whole(teacher.teacher)}` : ""}),
-            on ${s.prompts} messages outside the task; forcing the task onto one counts as a miss. The sentence:
-            “${s.decline}”`} />
+          note={`the fine-tune vs the model told the goal and the same sentence, on ${s.prompts} messages outside the
+            task${teacher?.teacher != null ? ` · Muse Spark ${whole(teacher.teacher)}` : ""} · untrained ${whole(s.base ?? 0)}`} />
+  );
+}
+
+// Everything else that was measured, one row each: a table reads faster than a wall of tiles
+function Scores({ rows }) {
+  return (
+    <div className="tile panel scores-wrap">
+      <table className="scores">
+        <caption className="scores-title">The rest of the numbers</caption>
+        <tbody>
+          {rows.filter(Boolean).map(([label, value, note]) => (
+            <tr key={label}><th scope="row">{label}</th><td className="scores-value">{value}</td>
+              <td className="scores-note">{note}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

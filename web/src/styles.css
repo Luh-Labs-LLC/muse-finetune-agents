@@ -796,3 +796,22 @@ main > .story {
 .composer .dictate-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .composer .dictate-error { position: absolute; right: 12px; bottom: 100%; margin-bottom: 4px; }
 .composer .dictate { position: relative; }
+
+/* Results: the bar reached or not, a headline row of the scores that matter, the rest as a table. */
+.run-bar { margin: 4px 0 14px; }
+.badge.met { background: var(--good); color: #fff; }
+.badge.short { background: var(--bad); color: #fff; }
+.stats.headline { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.stats.headline .stat-value { font-size: 2.4rem; }
+.scores-wrap { margin-top: 14px; padding: 8px 20px 4px; }
+.scores { table-layout: auto; }
+.scores-title { text-align: left; font-size: 0.85rem; font-weight: 600; color: var(--ink-2); padding: 8px 0 6px; caption-side: top; }
+.scores th { font-weight: 500; white-space: normal; padding-left: 0; width: 34%; }
+.scores td.scores-value { font: 700 1.15rem/1.2 var(--display); letter-spacing: -0.02em; white-space: nowrap; }
+.scores td.scores-note { text-align: left; white-space: normal; color: var(--ink-2); font-size: 0.85rem; padding-right: 0; }
+.scores tr:last-child th, .scores tr:last-child td { border-bottom: 0; }
+@media (max-width: 600px) {
+  .scores th, .scores td { display: block; width: auto; padding: 4px 0; border: 0; text-align: left; }
+  .scores th { padding-top: 12px; }
+  .scores tr { display: block; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+}
