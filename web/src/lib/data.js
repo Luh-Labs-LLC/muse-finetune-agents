@@ -40,6 +40,7 @@ export function range(interval) {
 export function luck(p) {
   if (p == null) return null;
   if (p >= 0.05) return `could be luck (p = ${p.toFixed(2)})`;
+  if (p <= 1e-6) return "under 1 in a million by luck";
   const n = Math.round(1 / p);
-  return `1 in ${n >= 1000 ? Math.round(n / 1000) * 1000 : n} by luck`;
+  return `1 in ${num(n >= 1000 ? Math.round(n / 1000) * 1000 : n)} by luck`;
 }

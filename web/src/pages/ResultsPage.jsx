@@ -77,12 +77,12 @@ function Run({ run, subject, tally }) {
                   note={[`${run.judge.vs_prompted.ties} ties`, `likely ${range(run.judge.vs_prompted.interval)}`,
                          luck(run.judge.vs_prompted.chance), "the honest test"].filter(Boolean).join(" · ")} />
           )}
-          {run.judge?.structure && <Structure structure={run.judge.structure} />}
+          {run.judge?.structure && !run.judge?.checks && <Structure structure={run.judge.structure} />}
           {run.judge?.scope && <Scope scope={run.judge.scope} />}
           {run.audit?.met != null && run.audit.sampled > 0 && (
             <Stat label="Training chats audited before training" value={`${run.audit.met} / ${run.audit.sampled}`}
                   note={`of a sample read blind by the Quality Judge did what the goal asks${run.audit.misses?.length
-                    ? `; the rest were sent back to the Job Architect to rewrite` : ""}`} />
+                    ? `; ${run.audit.misses.length} didn’t, in the judge’s reading` : ""}`} />
           )}
           {run.judge?.checks?.all && (
             <Stat label="Passes every rule, checked by code"
@@ -230,8 +230,9 @@ function Scope({ scope: s }) {
   if (s.tuned == null) return null;
   return (
     <Stat label="Off-task messages declined, checked by code" value={`${whole(s.tuned)} vs ${whole(s.prompted ?? 0)}`}
-          note={`the fine-tune vs the model told the goal (untrained: ${whole(s.base ?? 0)}), on ${s.prompts} messages
-            outside the task: a formula for the weather counts as a miss. The decline it learned: “${s.decline}”`} />
+          note={`the fine-tune, which learned the sentence, vs the model told the goal and the same sentence (untrained,
+            told neither: ${whole(s.base ?? 0)}), on ${s.prompts} messages outside the task; forcing the task onto one
+            counts as a miss. The sentence: “${s.decline}”`} />
   );
 }
 
@@ -291,8 +292,8 @@ function Rounds({ run }) {
       {run.rounds.filter((r) => r.repair).map((r) => (
         <details key={r.round} className="tile panel repair">
           <summary>
-            Why round {r.round} was repaired: it didn’t win {r.repair.missed} of {r.prompts}, so round {r.round + 1}
-            {" "}added {r.repair.new_chats} chats
+            Why round {r.round} was repaired: {r.repair.missed} prompts it lost, broke a rule on or didn’t decline, so
+            round {r.round + 1} added {r.repair.new_chats} chats
           </summary>
           <h3 className="small">Some of what it lost</h3>
           {(r.repair.sample_misses ?? []).map((m, i) => (
