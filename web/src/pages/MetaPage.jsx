@@ -1,16 +1,16 @@
-// agents.luhlabs.com: the request form first (it's what the site is for), then the models to try, how it works, and
-// the story.
-import { agentName, useJson } from "../lib/data.js";
+// agents.luhlabs.com: a chat you can teach. The chat fills the first screen; how teaching works, how to run it
+// yourself and the story follow below. With ?request=<id> in the address, the page follows that request instead.
+import { useJson } from "../lib/data.js";
 import { siteHref } from "../site.js";
 import About from "../About.jsx";
-import { openChat } from "../DemoChat.jsx";
-import Request from "../Request.jsx";
+import ChatPage from "../ChatPage.jsx";
+import Request, { requestId } from "../Request.jsx";
 import { Icon } from "../icons.jsx";
 import { openCommandMenu } from "../CommandMenu.jsx";
 
 const STEPS = [
-  { who: "You", title: "Describe the model you want",
-    body: "One sentence in plain English, like “answer support questions in two friendly sentences”." },
+  { who: "You", title: "Say what it should do",
+    body: "One sentence in plain English, like “turn a spreadsheet request into a single Excel formula”." },
   { who: "Muse Spark, agent 1", title: "The Job Architect designs the job",
     body: "Writes the training conversations, picks the base model, LoRA rank and epochs, and writes test prompts it keeps out of training. If the goal needs facts a small fine-tune can’t learn, it says so up front." },
   { who: "Code, then agent 2", title: "The data is checked before any GPU time is spent",
@@ -20,10 +20,10 @@ const STEPS = [
   { who: "Muse Spark, agent 2", title: "The Quality Judge grades the result",
     body: "Both models answer held-back prompts, prompts people wrote and prompts the judge writes itself. Code scores every reply on the rules; the judge picks the better reply blind, twice with the order swapped, and only a verdict both readings agree on counts. When neither reply does the goal, it says so. Then Muse Spark answers the same prompts itself, told the goal, and is judged against the fine-tune the same way." },
   { who: "Both agents", title: "If it isn’t good enough, they repair it",
-    body: "Short of the bar (wins, rules passed, off-task messages declined), the Job Architect writes new chats aimed at what was marked down, the model retrains, and it’s judged again on new prompts. Up to four more rounds." },
+    body: "Short of the bar (wins, rules passed, off-task messages declined), the Job Architect writes new chats aimed at what was marked down, the model retrains, and it’s judged again on new prompts. Up to four more rounds. Then the chat switches to the new model." },
 ];
 
-// The row at the top of a page: what it is, and what you can do from here
+// The row at the top of a page: what it is, and what you can do from here (the results page uses it)
 export function Topbar({ eyebrow, title, sub, children }) {
   return (
     <header className="topbar">
@@ -41,65 +41,17 @@ export function Topbar({ eyebrow, title, sub, children }) {
   );
 }
 
-export default function MetaPage({ run }) {
-  const { data: runs } = useJson("/results/runs.json");
-  const { data: status } = useJson("/api/status", 30_000);
-  const queue = status ? (status.running ?? 0) + (status.queued ?? 0) : null;
+export default function MetaPage() {
+  const following = requestId();
   return (
     <>
-      <section id="overview" className="lead" aria-labelledby="hero-title">
-        <Topbar eyebrow="Muse Spark fine-tune agents"
-                title={<span id="hero-title">Describe a model. Get a judged fine-tune.</span>}
-                sub="Write one sentence. Two Muse Spark agents design the training job, a GPU trains it, and a blind judge says whether it got better than just asking.">
-          <button type="button" className="button" onClick={openChat}><Icon name="chat" size={16} /> Talk to the models</button>
-          <a className="button" href={siteHref("results")}><Icon name="chart" size={16} /> See the results</a>
-        </Topbar>
-      </section>
-
-      <Request status={status} />
-
-      <section id="start" aria-labelledby="start-title">
-        <h2 id="start-title">Or try one first</h2>
-        <p className="muted">Three fine-tunes the agents already made, each trained from a sentence and judged blind against the same model told the goal.</p>
-        <div className="dash">
-          <div className="tile panel">
-            <ol className="board" aria-label="Published fine-tunes">
-              {(runs ?? []).map((r) => (
-                <li key={r.job}>
-                  <a href={runLink(r.job)} data-job={r.job}>
-                    <span className="board-title">{r.title}</span>
-                    <span className="board-score">{r.wins}/{r.prompts}</span>
-                    <span className="board-sub">preferred over the model {r.against}, on {r.prompts} unseen prompts</span>
-                    <span className="board-go" aria-hidden="true"><Icon name="chevron" size={18} /></span>
-                  </a>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <ol className="start" aria-label="Try one">
-            <li className="tile">
-              <button type="button" onClick={openChat}>
-                <span className="start-icon"><Icon name="chat" size={20} /></span>
-                <h3>Talk to a fine-tune</h3>
-                <p>Chat with the models the agents made, and with the untrained one, to feel the difference yourself.</p>
-                <span className="start-go">Open the chat</span>
-              </button>
-            </li>
-            <li className="tile">
-              <a href={siteHref("results")}>
-                <span className="start-icon green"><Icon name="chart" size={20} /></span>
-                <h3>See how one was judged</h3>
-                <p>Every score, every reply and the judge’s reason, for a run that reached its bar and one that didn’t.</p>
-                <span className="start-go">Open the results</span>
-              </a>
-            </li>
-          </ol>
-        </div>
+      <section id="chat" className="lead" aria-label="Chat">
+        {following ? <Request /> : <ChatPage />}
       </section>
 
       <section id="how" aria-labelledby="how-title">
-        <h2 id="how-title">How a goal becomes a model</h2>
-        <p className="muted">Six steps, two agents, one GPU. Code checks every step it can, and the judge grades the rest blind.</p>
+        <h2 id="how-title">How teaching it works</h2>
+        <p className="muted">Six steps, two Muse Spark agents, one GPU. Code checks every step it can, and a blind judge grades the rest. The results site shows every score and every reply.</p>
         <ol className="pipeline">
           {STEPS.map((s, i) => (
             <li key={i} className="tile">
@@ -110,9 +62,8 @@ export default function MetaPage({ run }) {
             </li>
           ))}
         </ol>
+        <p className="actions"><a className="button" href={siteHref("results")}><Icon name="chart" size={16} /> See a judged run in detail</a></p>
       </section>
-
-      <JudgeSummary run={run.data} />
 
       <section id="try" aria-labelledby="try-title">
         <h2 id="try-title">Run it yourself</h2>
@@ -155,27 +106,5 @@ export function Board({ runs, current, onPick }) {
   );
 }
 
-function JudgeSummary({ run: data }) {
-  const j = data?.judge;
-  if (!j) return null; // nothing to show until a judged run is published
-  return (
-    <section id="verdict" aria-labelledby="judge-title">
-      <h2 id="judge-title">The best verdict so far</h2>
-      <div className="tile panel verdict">
-        <p className="big-number">{(j.vs_prompted ?? j).tuned_wins}<span>/{j.prompts}</span></p>
-        <p>
-          {j.vs_prompted ? (
-            <>{agentName(data.judge_model)} preferred the fine-tuned {data.base_title} over the same model told the goal
-              on {j.vs_prompted.tuned_wins} of {j.prompts} unseen prompts, and over the untrained model on {j.tuned_wins}.{
-              j.teacher ? ` Against Muse Spark itself, told the goal, the 0.6B fine-tune held its own on ${
-                j.teacher.tuned_wins + j.teacher.ties} of ${j.teacher.prompts}.` : ""}</>
-          ) : (
-            <>{agentName(data.judge_model)} preferred the fine-tuned {data.base_title} over the untrained model on
-              {" "}{j.tuned_wins} of {j.prompts} unseen prompts ({j.ties} ties).</>
-          )}{" "}
-          <a href={siteHref("results", "answers")}>Read every answer</a>
-        </p>
-      </div>
-    </section>
-  );
-}
+// kept for anything that still imports it
+export { useJson };

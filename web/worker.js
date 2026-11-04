@@ -21,7 +21,8 @@
 //
 // The demo chat: a conversation with one of the demo models (DEMO_MODELS), the untrained base model or a fine-tune.
 //   GET  /api/models                                  the models to choose from
-//   POST /api/talk                     {model, messages}  the conversation so far, ending with the visitor's turn
+//   POST /api/talk                     {model, messages}  the conversation so far, ending with the visitor's turn;
+//                                                     model is a DEMO_MODELS id or req:<id> for a finished request's model
 //   GET  /api/talk/<id>                               its status and, once answered, the model's reply
 //   POST /api/dispatch/talk            {machine}      a dispatcher: take the oldest unanswered turn
 //   POST /api/dispatch/talk/<id>       {reply}        a dispatcher: the model's reply (or {error})
@@ -328,8 +329,20 @@ async function answer(env, chatId, { base, tuned, error }) {
   return json({ ok: true });
 }
 
+// A model the chat can talk to: a demo model's id, or req:<request id> for a model a request trained (once it's done)
+async function talkable(env, model) {
+  if (DEMO_MODELS.some((m) => m.id === model)) return true;
+  if (typeof model === "string" && model.startsWith("req:")) {
+    const row = await env.DB.prepare("SELECT status FROM requests WHERE id = ?").bind(model.slice(4)).first();
+    if (!row) throw fail(404, "no such request");
+    if (row.status !== "done") throw fail(409, "that model is still training");
+    return true;
+  }
+  return false;
+}
+
 async function talk(env, { model, messages }, request) {
-  if (!DEMO_MODELS.some((m) => m.id === model)) throw fail(400, "pick one of the demo models");
+  if (!(await talkable(env, model))) throw fail(400, "pick one of the demo models, or a model a finished request trained");
   if (!Array.isArray(messages) || !messages.length) throw fail(400, "send the conversation as a list of messages");
   messages = messages.slice(-MAX_TURNS).map((m) => {
     const role = m?.role === "assistant" ? "assistant" : "user";
@@ -370,8 +383,13 @@ async function claimTalk(env, { machine } = {}) {
        AND status = 'waiting'
      RETURNING *`).bind(Date.now(), Date.now() - CHAT_GIVE_UP_MS).first().catch(() => null);
   if (!row) return json(null);
-  const model = DEMO_MODELS.find((m) => m.id === row.model);
-  return json({ id: row.id, model: row.model, job: model?.job ?? null, messages: JSON.parse(row.messages) });
+  let job = DEMO_MODELS.find((m) => m.id === row.model)?.job ?? null;
+  if (row.model.startsWith("req:")) {  // a request's model: the adapter its run kept, or the first round's
+    const req = await env.DB.prepare("SELECT job_id, run FROM requests WHERE id = ?").bind(row.model.slice(4)).first();
+    const run = req?.run ? JSON.parse(req.run) : {};
+    job = run.job ?? req?.job_id ?? null;
+  }
+  return json({ id: row.id, model: row.model, job, messages: JSON.parse(row.messages) });
 }
 
 async function replyTalk(env, id, { reply, error }) {

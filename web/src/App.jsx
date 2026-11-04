@@ -35,7 +35,7 @@ export default function App() {
           <Footer />
         </div>
       </div>
-      <DemoChat />
+      {site === "results" && <DemoChat />}
       <CommandMenu runs={id ? null : runs.data} currentJob={job} onPickRun={site === "results" ? pickJob : null} />
       <Toasts />
     </>

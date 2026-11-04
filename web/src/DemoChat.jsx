@@ -13,13 +13,13 @@ import { useBackClose, useSwipeDismiss } from "./lib/sheet.js";
 
 const POLL_MS = 1500;
 const GIVE_UP_MS = 3 * 60_000;
-const KEY = "muse-demo-chat";
+export const KEY = "muse-demo-chat";
 const OPEN = "muse-open-chat";  // the event openChat() sends, for buttons elsewhere on the page
 const BASE = "qwen3-0.6b";
 const MAX_TURN = 6000;  // characters of one message: the queue (worker.js) keeps no more
 
 // Things to try first, per model: chosen to show off what the fine-tune learned.
-const STARTERS = {
+export const STARTERS = {
   [BASE]: ["Tell me a joke", "What's the capital of France?", "How do I stay focused?"],
   "ticket-json": ["I was charged twice this month and nobody has answered my emails!!",
                   "Hi, how do I change the email on my account? No rush.",
@@ -29,13 +29,13 @@ const STARTERS = {
           "Count the rows where the due date in B is before today", "what's the weather in san diego?"],
   "twain-plato": ["Is it better to be rich or wise?", "What is justice?", "Should I learn the piano?"],
 };
-const FALLBACK = ["Hello! Who are you?", "Tell me a joke", "What's the capital of France?"];
+export const FALLBACK = ["Hello! Who are you?", "Tell me a joke", "What's the capital of France?"];
 
 export function openChat() {
   window.dispatchEvent(new Event(OPEN));
 }
 
-function load() {
+export function load() {
   try {
     return JSON.parse(localStorage.getItem(KEY) ?? "{}");
   } catch {
@@ -43,14 +43,14 @@ function load() {
   }
 }
 
-function save(all) {
+export function save(all) {
   try {
     localStorage.setItem(KEY, JSON.stringify(all));
   } catch { /* no storage: the conversation lasts as long as the page */ }
 }
 
 // A model's round badge: its first letter on its own colour.
-function Avatar({ model, size = 28 }) {
+export function Avatar({ model, size = 28 }) {
   return (
     <span className={`mav m-${model.id}`} style={{ width: size, height: size, fontSize: size * 0.46 }} aria-hidden="true">
       {model.title[0]}
@@ -289,11 +289,13 @@ export default function DemoChat() {
 
 // The model picker: the current model's name as a button, and a menu of every model under it, fine-tunes first,
 // each with what it does and its score. Arrow keys move, Enter picks, Escape closes it (and only it).
-function ModelMenu({ models, model, onPick, pending }) {
+export function ModelMenu({ models, model, onPick, pending }) {
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState(0);
   const button = useRef(null), menu = useRef(null);
-  const order = [...models.filter((m) => !m.base), ...models.filter((m) => m.base)];
+  // the models you trained first, then the agents' fine-tunes, then the base model as it comes
+  const order = [...models.filter((m) => m.trained), ...models.filter((m) => !m.base && !m.trained), ...models.filter((m) => m.base)];
+  const group = (m) => (m.trained ? "Trained by you" : m.base ? "Base model" : "Fine-tuned by the agents");
 
   useEffect(() => {
     if (!open) return;
@@ -326,7 +328,7 @@ function ModelMenu({ models, model, onPick, pending }) {
         <Avatar model={model} size={30} />
         <span className="mpick-label">
           <span className="mpick-name">{model.title}</span>
-          <span className="mpick-sub">{model.base ? "Base model · no fine-tuning" : `Fine-tune · won ${model.score}`}</span>
+          <span className="mpick-sub">{model.base ? "Base model · no fine-tuning" : model.trained ? `Trained by you${model.score ? ` · won ${model.score}` : ""}` : `Fine-tune · won ${model.score}`}</span>
         </span>
         <Icon name="down" size={16} />
       </button>
@@ -334,8 +336,8 @@ function ModelMenu({ models, model, onPick, pending }) {
            onKeyDown={keys} inert={open ? undefined : ""} aria-hidden={!open}>
         {order.map((m, i) => (
           <div key={m.id}>
-            {(i === 0 || m.base !== order[i - 1].base) && (
-              <p className="mpick-group" aria-hidden="true">{m.base ? "Base model" : "Fine-tuned by the agents"}</p>
+            {(i === 0 || group(m) !== group(order[i - 1])) && (
+              <p className="mpick-group" aria-hidden="true">{group(m)}</p>
             )}
             <button type="button" role="option" aria-selected={m.id === model.id} tabIndex={i === at ? 0 : -1}
                     className="mpick-option" onClick={() => choose(m)} onMouseEnter={() => setAt(i)}>

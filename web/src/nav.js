@@ -1,11 +1,10 @@
 // Everything the sidebar lists, in order: each item is a section of one of the two sites, or an outside link.
-// `id` is the section's id on its page. The request comes first: it's what the site is for.
+// `id` is the section's id on its page. The chat is the page; everything else is below it or on the results site.
 
 export const NAV = [
-  { group: "Agents", items: [
-    { site: "meta", id: "request", label: "Request a fine-tune", icon: "chat" },
-    { site: "meta", id: "start", label: "Try one first", icon: "grid" },
-    { site: "meta", id: "how", label: "How it works", icon: "steps" },
+  { group: "Chat", items: [
+    { site: "meta", id: "chat", label: "Chat", icon: "chat" },
+    { site: "meta", id: "how", label: "How teaching works", icon: "steps" },
     { site: "meta", id: "try", label: "Run it yourself", icon: "terminal" },
   ] },
   { group: "Fine-tune run", items: [

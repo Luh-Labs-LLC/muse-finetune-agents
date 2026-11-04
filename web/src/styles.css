@@ -760,3 +760,43 @@ kbd { display: inline-block; min-width: 1.4em; padding: 1px 5px; border-radius: 
   .writing-line::after { transform: none; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
+
+/* --- the chat is the page ---------------------------------------------------------------------------------------- */
+main > section#chat { padding-top: 16px; padding-bottom: 24px; }
+.chatpage { display: flex; flex-direction: column; min-height: calc(100vh - 72px); max-width: 860px; margin: 0 auto; }
+.chatpage-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.chatpage-top .mpick { position: relative; }
+.chatpage-top .mpick-menu { left: 0; right: auto; width: min(420px, calc(100vw - 48px)); }
+.chatpage-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.chatpage-hello { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; padding: 40px 0 24px; }
+.chatpage-hello h1 { font-size: 2rem; letter-spacing: -0.03em; }
+.chatpage-hello p { max-width: 54ch; }
+.chatpage-hello .mav { box-shadow: 0 14px 30px -12px rgba(21, 23, 28, 0.5); }
+.talk-page { flex: 1; padding: 24px 0 12px; gap: 14px; }
+.talk-page .msg .bubble { max-width: 76%; font-size: 1rem; padding: 11px 15px; }
+.talk-page .msg.assistant .bubble { background: var(--surface); border: 1px solid rgba(255, 255, 255, 0.8); box-shadow: var(--shadow); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+.chatpage-composer { position: sticky; bottom: 0; padding: 10px 0 6px; display: grid; gap: 10px; background: linear-gradient(to top, var(--bg) 60%, transparent); }
+.chatpage.empty .chatpage-composer { position: static; flex: 0; background: none; }
+.composer.big { margin: 0; padding: 10px 10px 10px 20px; border-radius: 26px; background: rgba(255, 255, 255, 0.72); border: 1px solid rgba(255, 255, 255, 0.9); box-shadow: var(--shadow);
+                -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); }
+.composer.big textarea { font-size: 1.05rem; padding: 9px 0; max-height: 160px; }
+.composer.big .composer-send { width: 40px; height: 40px; }
+.composer.big .dictate-button { width: 40px; height: 40px; }
+.chatpage-starters { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.chip-teach { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+.chatpage-note { text-align: center; font-size: 0.72rem; }
+.chatpage .notice-inline { margin: 0; }
+.training-card { margin: 4px 0 4px 34px; max-width: 560px; }
+.training-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 6px; }
+.training-card h3 { font-size: 1rem; }
+.training-card .actions { margin-top: 12px; }
+@media (max-width: 860px) { .chatpage { min-height: calc(100vh - 110px); } .training-card { margin-left: 0; } .talk-page .msg .bubble { max-width: 88%; } }
+
+/* --- a sheet over the page ---------------------------------------------------------------------------------------- */
+.sheet-scrim { position: fixed; inset: 0; z-index: 65; display: grid; place-items: center; padding: 16px; background: rgba(18, 20, 28, 0.3); animation: scrim-in 0.15s ease-out; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.sheet { width: min(760px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden; background: rgba(255, 255, 255, 0.86); animation: cmd-in 0.2s ease-out; }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px 12px 24px; border-bottom: 1px solid var(--line-2); }
+.sheet-head h2 { margin: 0; font-size: 1.2rem; }
+.sheet-body { overflow-y: auto; padding: 4px 24px 24px; }
+.sheet-body .request-form { background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 12px 0 0; }
+@media (prefers-reduced-motion: reduce) { .sheet, .sheet-scrim { animation: none !important; } }

@@ -55,7 +55,7 @@ export default function Request() {
 // (another visitor never sees them); storage can be off or full, in which case there's just no list.
 const MINE = "muse-finetune-requests";
 
-function mine() {
+export function mine() {
   try {
     return JSON.parse(localStorage.getItem(MINE) ?? "[]");
   } catch {
@@ -63,7 +63,7 @@ function mine() {
   }
 }
 
-function remember(id, goal) {
+export function remember(id, goal) {
   try {
     localStorage.setItem(MINE, JSON.stringify([{ id, goal, at: Date.now() }, ...mine()].slice(0, 20)));
   } catch { /* no storage: nothing to remember it in */ }
@@ -127,8 +127,9 @@ function Queue() {
   );
 }
 
-function Form({ onQueued }) {
-  const [goal, setGoal] = useState("");
+export function Form({ onQueued, initialGoal = "" }) {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [goal, setGoal] = useState(initialGoal);
   const [code, setCode] = useState("");
   const [rigor, setRigor] = useState("standard");
   const [state, setState] = useState({ sending: false, error: null });
