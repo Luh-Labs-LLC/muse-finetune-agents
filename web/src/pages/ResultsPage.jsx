@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import Chat, { Votes } from "../Chat.jsx";
 import { Skeleton, Sparkline, Stat } from "../components.jsx";
-import { RIGOR_NAMES, SETS, Scorebar, requestId, runHref } from "../Request.jsx";
+import { RIGOR_NAMES, SETS, Scorebar, requestId } from "../Request.jsx";
+import { Board } from "./MetaPage.jsx";
 import { agentName, luck, num, pct, prefetch, range, useJson } from "../lib/data.js";
 
 export default function ResultsPage({ run, runs, onPickRun }) {
@@ -17,15 +18,13 @@ export default function ResultsPage({ run, runs, onPickRun }) {
   return (
     <>
       <section id="fine-tune" className="hero" aria-labelledby="hero-title">
-        <p className="eyebrow">{published ? `${published.base_title} · LoRA fine-tune` : "LoRA fine-tune"}</p>
         <h1 id="hero-title">A fine-tune, designed and judged by {planner === judge ? planner : "two agents"}.</h1>
         <p className="lede">
           {planner} wrote the training data and settings from a plain-English goal, one GPU trained it, and {judge}
           {" "}judged the finished model against the original, blind.
         </p>
+        {runs?.length > 1 && <RunPicker runs={runs} current={published?.job} onPick={onPickRun} />}
       </section>
-
-      {runs?.length > 1 && <RunPicker runs={runs} current={published?.job} onPick={onPickRun} />}
 
       {published ? (
         <Run run={published} subject={subject} tally={tally} />
@@ -44,19 +43,10 @@ export default function ResultsPage({ run, runs, onPickRun }) {
 // Every published run, best first, each with its headline score. Links, so a run can be shared by its address; on
 // the page they swap the run in place (and a run is fetched as soon as the pointer rests on it, so the swap is instant).
 function RunPicker({ runs, current, onPick }) {
+  const warm = (e) => { const a = e.target.closest("a[data-job]"); if (a) prefetch(`/results/${a.dataset.job}.json`); };
   return (
-    <nav className="runpicker" aria-label="Published fine-tunes">
-      {runs.map((r) => {
-        const warm = () => prefetch(`/results/${r.job}.json`);
-        return (
-          <a key={r.job} href={runHref(r.job)} aria-current={r.job === current ? "page" : undefined}
-             onPointerEnter={warm} onFocus={warm}
-             onClick={onPick ? (e) => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); onPick(r.job); } } : undefined}>
-            <span>{r.title}</span>
-            <span className="muted small">{r.wins} / {r.prompts} vs {r.against}</span>
-          </a>
-        );
-      })}
+    <nav className="runpicker" aria-label="Published fine-tunes" onPointerOver={warm} onFocusCapture={warm}>
+      <Board runs={runs} current={current} onPick={onPick} />
     </nav>
   );
 }
@@ -96,20 +86,8 @@ function Run({ run, subject, tally }) {
             </span>
           </p>
         )}
+        {run.judge && <Ladder run={run} />}
         <dl className="stats headline">
-          {run.judge?.vs_prompted ? (
-            <Stat label="Preferred over the base model told the goal"
-                  value={`${run.judge.vs_prompted.tuned_wins} / ${run.judge.prompts}`}
-                  note={[`${run.judge.vs_prompted.ties} ties`,
-                         run.judge.vs_prompted.neither > 0 && `${run.judge.vs_prompted.neither} where neither did the goal`,
-                         `likely ${range(run.judge.vs_prompted.interval)}`,
-                         luck(run.judge.vs_prompted.chance)].filter(Boolean).join(" · ")} />
-          ) : run.judge && (
-            <Stat label="Preferred over the untrained model" value={`${run.judge.tuned_wins} / ${run.judge.prompts}`}
-                  note={[`${run.judge.ties} ties`, run.judge.interval && `likely ${range(run.judge.interval)}`,
-                         luck(run.judge.chance)].filter(Boolean).join(" · ")} />
-          )}
-          {run.judge?.teacher && <Teacher teacher={run.judge.teacher} />}
           {run.judge?.checks?.all && (
             <Stat label="Passes every rule, checked by code"
                   value={`${whole(run.judge.checks.all.tuned)} vs ${whole(run.judge.checks.all.prompted ?? 0)}`}
@@ -190,21 +168,55 @@ function Run({ run, subject, tally }) {
   );
 }
 
+// The ladder: the fine-tune against each rival it was judged against, from the easiest to the hardest, as one bar
+// each of wins, ties, losses and pairs where neither did the goal. The judge's headline number is the middle rung.
+function Ladder({ run }) {
+  const j = run.judge, n = j.prompts;
+  const rungs = [
+    { who: `${run.base_title}, untrained`, sub: "the easy comparison: it was never told the goal", t: j, quiet: true },
+    j.vs_prompted && { who: `${run.base_title}, told the goal`, sub: "the score that matters: the same model, asked in plain words to do this",
+      t: { tuned_wins: j.vs_prompted.tuned_wins, ties: j.vs_prompted.ties, neither: j.vs_prompted.neither ?? 0,
+           base_wins: j.vs_prompted.prompted_wins }, chance: j.vs_prompted.chance, interval: j.vs_prompted.interval },
+    j.teacher && { who: `${agentName(j.teacher.model)} itself, told the goal`, sub: "the frontier model that wrote the training chats; even is as good as it gets",
+      t: { tuned_wins: j.teacher.tuned_wins, ties: j.teacher.ties, neither: j.teacher.neither ?? 0, base_wins: j.teacher.teacher_wins }, held: true },
+  ].filter(Boolean);
+  return (
+    <ol className="ladder" aria-label="The fine-tune against each rival">
+      {rungs.map((r) => {
+        const t = r.t, neither = t.neither ?? 0, losses = t.base_wins ?? (n - t.tuned_wins - t.ties - neither);
+        const score = r.held ? t.tuned_wins + t.ties : t.tuned_wins;
+        return (
+          <li key={r.who} className={r.quiet ? "quiet" : ""}>
+            <span className="ladder-who">{r.held ? "Even or better against" : "Preferred over"} {r.who}</span>
+            <span className="ladder-sub">{r.sub}</span>
+            <span className="ladder-score" aria-label={`${score} of ${n}`}>{score}<small>/ {n}</small></span>
+            <span className="ladder-bar" role="img"
+                  aria-label={`${t.tuned_wins} won, ${t.ties} even, ${losses} lost${neither ? `, ${neither} where neither did the goal` : ""}`}>
+              {t.tuned_wins > 0 && <span className="tuned" style={{ flexGrow: t.tuned_wins }} />}
+              {t.ties > 0 && <span className="tie" style={{ flexGrow: t.ties }} />}
+              {losses > 0 && <span className="base" style={{ flexGrow: losses }} />}
+              {neither > 0 && <span className="neither" style={{ flexGrow: neither }} />}
+            </span>
+            <span className="ladder-key">
+              <span className="tuned"><b>{t.tuned_wins}</b> won</span>
+              <span className="tie"><b>{t.ties}</b> even</span>
+              <span className="base"><b>{losses}</b> lost</span>
+              {neither > 0 && <span className="neither"><b>{neither}</b> neither did the goal</span>}
+              {r.interval && <span>likely {range(r.interval)}</span>}
+              {r.chance != null && <span>{luck(r.chance)}</span>}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 // What a message costs the fine-tune and the model told the goal: the same base model on the same GPU, so the
 // difference is the goal, which the rival needs sent with every message and the fine-tune has learned.
 const whole = (x) => `${Math.round(x * 100)}%`;  // pct's decimal doesn't fit two shares in a tile
 
 // A score code measured, not a judge: for a goal that asks for JSON, the share of replies that parse as JSON
-// The fine-tune against the model that wrote its training chats: Muse Spark itself, told the goal, on the same
-// prompts, judged the same blind way. Beside the bar, not part of it: how much of the big model fits in the small one.
-function Teacher({ teacher: t }) {
-  return (
-    <Stat label={`Even or better against ${agentName(t.model)} itself`} value={`${t.tuned_wins + t.ties} / ${t.prompts}`}
-          note={`${t.tuned_wins} preferred, ${t.ties} even, ${t.neither ? `${t.neither} where neither did the goal, ` : ""}${t.teacher_wins} lost to the frontier model that wrote its
-            training chats, told the goal${t.hard ? ` · hard prompts ${t.hard.tuned_wins + t.hard.ties} / ${t.hard.prompts}` : ""}`} />
-  );
-}
-
 // The second judge's name for a label: "Muse Wonder" for muse-wonder-1.0, "a newer Muse Spark" for a Spark version
 const judgeName = (model) => (/wonder/i.test(model ?? "") ? "Muse Wonder" : /spark/i.test(model ?? "") ? "a newer Muse Spark" : model);
 

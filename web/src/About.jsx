@@ -1,52 +1,26 @@
-// The About section: a bolder, playful layout of its own. Oversized wide capitals, portraits in irregular outlines
-// with dashed edges, and name tags that point at them like a design tool's cursors.
-import { Icon } from "./icons.jsx";
+// The About section: who built it and why, in the same voice as the rest of the site.
 import { TEAM } from "./team.js";
 
 export default function About() {
   return (
     <section id="about" className="story" aria-labelledby="about-title">
-      <h2 id="about-title" className="story-title">
-        {TEAM.length === 1 ? `I'm ${TEAM[0].name}` : `We're ${TEAM.map((p) => p.name).join(" & ")}`}
+      <h2 id="about-title">
+        {TEAM.length === 1 ? `Built by ${TEAM[0].name}, at Luh Labs` : `Built by ${TEAM.map((p) => p.name).join(" and ")}`}
       </h2>
-
       <ul className="portraits">
-        {TEAM.map((p, i) => (
-          <li key={p.name} style={{ "--tag": p.color }} className={i % 2 ? "tag-right" : "tag-left"}>
-            <Portrait person={p} />
-            <span className="cursor-tag">
-              <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l17 7-7 2.5L10.5 20z" /></svg>
-              <span>{p.name}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      <p className="story-sub">And I built this at Luh Labs</p>
-
-      <div className="story-head">
-        <h3>Why it exists</h3>
-      </div>
-
-      <p className="story-lede">Fine-tuning should take a sentence, not a weekend.</p>
-      <p className="story-body">
-        Most of a fine-tune isn't the training. It's writing the examples, picking the settings and finding out
-        whether it worked. The agents do that part, and the judge says plainly when it didn't.
-      </p>
-      <p className="story-body">Want to see the code?</p>
-      <a className="dashed-button" href="https://github.com/Luh-Labs-LLC/muse-finetune-agents">
-        Source code <Icon name="arrow" size={20} />
-      </a>
-
-      <ul className="team-cards">
         {TEAM.map((p) => (
-          <li key={p.name} className="team-card" style={{ "--tag": p.color }}>
-            <h4>{p.name}</h4>
-            <p className="team-role">{p.role}</p>
-            <p>{p.built}</p>
-          </li>
+          <li key={p.name}><Portrait person={p} /></li>
         ))}
       </ul>
+      <div className="story-text">
+        <p className="story-lede">Fine-tuning should take a sentence, not a weekend.</p>
+        <p className="story-body">
+          Most of a fine-tune isn’t the training. It’s writing the examples, picking the settings and finding out
+          whether it worked. The agents do that part, and the judge says plainly when it didn’t.
+        </p>
+        {TEAM.map((p) => <p key={p.name} className="story-role">{p.name}, {p.role}: {p.built}</p>)}
+        <a className="button" href="https://github.com/Luh-Labs-LLC/muse-finetune-agents">Read the source code</a>
+      </div>
     </section>
   );
 }
