@@ -35,3 +35,11 @@ export const pct = (x) => `${(x * 100).toFixed(1)}%`;
 export function range(interval) {
   return interval ? `${Math.round(interval[0] * 100)}–${Math.round(interval[1] * 100)}%` : null;
 }
+
+// The chance a coin would score this well (judge.chance), in words: "1 in 50,000 by luck", or that it could be luck.
+export function luck(p) {
+  if (p == null) return null;
+  if (p >= 0.05) return `could be luck (p = ${p.toFixed(2)})`;
+  const n = Math.round(1 / p);
+  return `1 in ${n >= 1000 ? Math.round(n / 1000) * 1000 : n} by luck`;
+}

@@ -72,6 +72,14 @@ A fine-tune that beats an untrained model on its own goal proves little: that mo
 - The judge won't let style beat a correct answer, and it **flags false or unhelpful replies**; the count is shown.
 - Every score comes with its **95% range**: 19 of 20 means about 76–99%, not 95%.
 - Where code can score a goal, it does: a goal that asks for JSON reports the share of replies that parse.
+- **A narrow task has to know what isn't its job.** An early Excel-formula model answered "what's the weather" with
+  a formula. For a goal that's a task on a kind of input (extract, convert, classify), the Job Architect now states
+  the one sentence the model says to anything else, trains it on off-task messages answered with that sentence, and
+  writes off-task test prompts; code measures how many the fine-tune declined, the judge is told the scope, and
+  Standard and Strict require 75% declined before a run is published.
+- No test prompt may be a training chat in disguise: code compares them with case, punctuation and spacing removed.
+- Every score also says what **luck** would do: the exact chance a coin flip would win at least that many of the
+  decided pairs. 19 of 20 is 1 in 50,000; 10 of 16 could be luck (p = 0.23), and the page says so.
 - A **second judge** reads every pair, and the agreement is shown; so are **blind votes from people**.
 - Each run has a **receipt**: trained and frozen weight counts, settings, peak GPU memory, and SHA-256 fingerprints
   of the training chats and the adapter.

@@ -3,7 +3,7 @@
 import Chat, { Votes } from "../Chat.jsx";
 import { Sparkline, Stat } from "../components.jsx";
 import { RIGOR_NAMES, SETS, requestId, runHref } from "../Request.jsx";
-import { agentName, num, pct, range, useJson } from "../lib/data.js";
+import { agentName, luck, num, pct, range, useJson } from "../lib/data.js";
 
 export default function ResultsPage({ run, runs }) {
   // A run can be tried blind when it's a request's (opened from its link) or one of the demo chat's fine-tunes
@@ -74,12 +74,15 @@ function Run({ run, subject, tally }) {
           {run.judge?.vs_prompted && (
             <Stat label="Preferred over the base model told the goal"
                   value={`${run.judge.vs_prompted.tuned_wins} / ${run.judge.prompts}`}
-                  note={`${run.judge.vs_prompted.ties} ties · likely ${range(run.judge.vs_prompted.interval)} · the honest test`} />
+                  note={[`${run.judge.vs_prompted.ties} ties`, `likely ${range(run.judge.vs_prompted.interval)}`,
+                         luck(run.judge.vs_prompted.chance), "the honest test"].filter(Boolean).join(" · ")} />
           )}
           {run.judge?.structure && <Structure structure={run.judge.structure} />}
+          {run.judge?.scope && <Scope scope={run.judge.scope} />}
           {run.judge && <Stat label="Preferred over the untrained model"
                               value={`${run.judge.tuned_wins} / ${run.judge.prompts}`}
-                              note={`${run.judge.ties} ties${run.judge.interval ? ` · likely ${range(run.judge.interval)}` : ""}`} />}
+                              note={[`${run.judge.ties} ties`, run.judge.interval && `likely ${range(run.judge.interval)}`,
+                                     luck(run.judge.chance)].filter(Boolean).join(" · ")} />}
           {run.judge?.hard && (
             <Stat label="Hard prompts, preferred over the model told the goal"
                   value={`${(run.judge.hard.vs_prompted ?? run.judge.hard).tuned_wins} / ${run.judge.hard.prompts}`}
@@ -166,10 +169,22 @@ const whole = (x) => `${Math.round(x * 100)}%`;  // pct's decimal doesn't fit tw
 
 // A score code measured, not a judge: for a goal that asks for JSON, the share of replies that parse as JSON
 function Structure({ structure: s }) {
+  if (s.tuned == null) return null;
   return (
-    <Stat label="Valid JSON, checked by code" value={`${whole(s.tuned)} vs ${whole(s.prompted)}`}
-          note={`the fine-tune vs the model told the goal (untrained: ${whole(s.base)}), over all ${s.prompts} test
+    <Stat label="Valid JSON, checked by code" value={`${whole(s.tuned)} vs ${whole(s.prompted ?? s.base ?? 0)}`}
+          note={`the fine-tune vs the model told the goal (untrained: ${whole(s.base ?? 0)}), over all ${s.prompts} test
             prompts: parsed, not judged`} />
+  );
+}
+
+// For a narrow task: the share of off-task messages ("what's the weather", to a formula model) each model declined
+// with the sentence it was trained on, measured by code. Forcing the task onto them scores 0 here.
+function Scope({ scope: s }) {
+  if (s.tuned == null) return null;
+  return (
+    <Stat label="Off-task messages declined, checked by code" value={`${whole(s.tuned)} vs ${whole(s.prompted ?? 0)}`}
+          note={`the fine-tune vs the model told the goal (untrained: ${whole(s.base ?? 0)}), on ${s.prompts} messages
+            outside the task: a formula for the weather counts as a miss. The decline it learned: “${s.decline}”`} />
   );
 }
 
@@ -233,7 +248,7 @@ function Rounds({ run }) {
             {" "}added {r.repair.new_chats} chats
           </summary>
           <h3 className="small">Some of what it lost</h3>
-          {r.repair.sample_misses.map((m, i) => (
+          {(r.repair.sample_misses ?? []).map((m, i) => (
             <div key={i} className="miss">
               <p className="prompt small">{m.prompt}</p>
               <p className="small"><strong>Fine-tune:</strong> {m.tuned}</p>
@@ -241,7 +256,7 @@ function Rounds({ run }) {
             </div>
           ))}
           <h3 className="small">Some of the chats written to fix it</h3>
-          {r.repair.sample_repairs.map((e, i) => (
+          {(r.repair.sample_repairs ?? []).map((e, i) => (
             <div key={i} className="miss">
               <p className="prompt small">{e.user}</p>
               <p className="small">{e.assistant}</p>
@@ -267,7 +282,10 @@ function ReadingScores({ run }) {
         <li><strong>Over the untrained model</strong> is the easy comparison: that model was never told the goal, so a
           high score mostly shows the fine-tune learned the style.</li>
         <li>Each reply pair is judged twice, in both orders, and only counts when both readings agree. The range is
-          where the true rate likely sits, given only {run.judge.prompts} test prompts.</li>
+          where the true rate likely sits, given only {run.judge.prompts} test prompts; “1 in N by luck” is the chance a
+          coin would win at least as many of the decided pairs.</li>
+        <li>Where code can score the goal, it does: valid JSON is parsed, and a narrow task’s off-task messages are
+          checked for the decline sentence. Those numbers don’t depend on any judge.</li>
         <li>{agentName(run.judge_model)} wrote the training chats and also judges, and judges like their own style, so
           these scores may lean towards the fine-tune. The answers are below so you can judge for yourself.</li>
       </ul>
