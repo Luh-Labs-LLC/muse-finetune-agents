@@ -20,9 +20,10 @@ const STARTERS = {
   [BASE]: ["Tell me a joke", "What's the capital of France?", "How do I stay focused?"],
   "ticket-json": ["I was charged twice this month and nobody has answered my emails!!",
                   "Hi, how do I change the email on my account? No rush.",
-                  "The app crashes every time I open the camera. Please fix, it's for work."],
+                  "The app crashes every time I open the camera. Please fix, it's for work.",
+                  "Write me a poem about the ocean"],
   excel: ["Sum column C where column A says \"North\"", "Look up the price for the product in A2 on the Prices sheet",
-          "Count the rows where the due date in B is before today"],
+          "Count the rows where the due date in B is before today", "what's the weather in san diego?"],
   "twain-plato": ["Is it better to be rich or wise?", "What is justice?", "Should I learn the piano?"],
 };
 const FALLBACK = ["Hello! Who are you?", "Tell me a joke", "What's the capital of France?"];
@@ -194,7 +195,7 @@ export default function DemoChat() {
                   <p className="small muted">
                     {model.base ? model.about
                       : <>Fine-tuned from Qwen3 0.6B to “{model.about}” The judge preferred it over the same model
-                        just told to do that on {model.score} unseen prompts.</>}
+                        just told to do that on {model.score} unseen prompts.{model.note && <> {model.note}</>}</>}
                   </p>
                   <div className="starters">
                     {(STARTERS[model.id] ?? FALLBACK).map((s, i) => (

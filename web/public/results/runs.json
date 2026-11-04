@@ -1,19 +1,19 @@
 [
   {
-    "job": "support-message-parser-json-af23e6",
+    "job": "support-msg-json-parser-6eb686",
     "title": "Support ticket triage, as JSON",
     "base_title": "Qwen3 0.6B",
     "date": "2026-11-03",
-    "wins": 19,
+    "wins": 17,
     "prompts": 20,
     "against": "told the goal"
   },
   {
-    "job": "excel-formula-single-line-c4c04b-r3",
+    "job": "excel-formula-single-line-bc11a0-r3",
     "title": "Excel formulas from plain English",
     "base_title": "Qwen3 0.6B",
     "date": "2026-11-03",
-    "wins": 16,
+    "wins": 10,
     "prompts": 19,
     "against": "told the goal"
   },

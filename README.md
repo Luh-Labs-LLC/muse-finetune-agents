@@ -34,16 +34,25 @@ corner of every page for talking to the fine-tunes.
 Three goals, each typed into the site's form and run end to end on one RTX 4060 (8 GB), Qwen3 0.6B as the base.
 The headline is wins against the same base model told the goal; each run's every answer is on the results page.
 
-| Goal | Level | Rounds, wins over the model told the goal | Also |
-|---|---|---|---|
-| Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | **19 / 20** in one round (likely 76–99%) | Valid JSON, **checked by code**: fine-tune 100%, told the goal 3%, untrained 3% (32 prompts) |
-| Plain-English request → one Excel formula, nothing else | Standard | 13/20 → 13/17 → **16/19** | Reached the bar on the second repair |
-| Answer like Mark Twain, reason like Plato | Strict | 11/20 → 11/17 → **8/18** | Fell short; the repairs didn't help, so it stopped |
+| Goal | Level | Rounds, wins over the model told the goal | Rules passed, **checked by code** | Off-task messages declined |
+|---|---|---|---|---|
+| Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | **17 / 20** in one round (likely 64–95%; about 1 in 800 by luck) | one line, the four keys, allowed values: fine-tune **94%**, told the goal 0%, untrained 0% (32 prompts) | **5 of 5**; told the goal 1 of 5 |
+| Plain-English request → one Excel formula, nothing else | Standard | 11/20 → 10/18 → **10/19, 9 ties, no losses** (short of the bar) | starts with `=`, one line, balanced brackets: **94%**, told the goal 55%, untrained 0% (31 prompts) | **4 of 4**; told the goal 3 of 4 |
+| Answer like Mark Twain, reason like Plato | Strict | 11/20 → 11/17 → **8/18** | — | — |
 
-- The fine-tune doesn't need the goal sent with every message: the JSON model used **106 prompt tokens a message
-  against 180** for the model told the goal (41% fewer), and replied in 2.1 s against 4.3 s on the same GPU.
-- A second judge, a newer Muse Spark on the cheaper Contributor tier, read every pair again and agreed on 16 of 20
-  (JSON) and 18 of 19 (Excel). It's the same model family, so it checks consistency, not independence.
+- The Excel run is published short of its bar on purpose: the bar counts wins, and a 0.6B model told the goal
+  writes the same `=SUMIFS(…)` for a short request, so nine pairs tied. The fine-tune's edge is on the long briefs
+  (every win), the rules and the off-task messages, and it never lost a pair. The Twain run fell short too; the
+  repairs didn't help, so it stopped.
+- A narrow goal declines what isn't its job: asked for the weather or a poem, both the JSON and the Excel fine-tunes
+  answer with the one decline sentence the Architect wrote, and code counts how often each model does. The model
+  told the goal is told that sentence too, so the comparison is fair.
+- The fine-tune doesn't need the goal sent with every message: the JSON model used **95 prompt tokens a message
+  against 202** for the model told the goal (53% fewer), and replied in 1.7 s against 3.4 s on the same GPU; the
+  Excel model 99 against 197, in 2.8 s against 7.3 s.
+- A second judge, a newer Muse Spark on the cheaper Contributor tier, read every pair again and agreed on 17 of 20
+  (JSON, Cohen's κ 0.51) and 17 of 19 (Excel, κ 0.79). It's the same model family, so it checks consistency, not
+  independence.
 - Visitors can vote too: the chat shows the fine-tune and the model told the goal as A and B in random order, and
   the tally sits beside the judges' scores.
 
