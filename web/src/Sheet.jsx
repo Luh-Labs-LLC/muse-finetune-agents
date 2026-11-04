@@ -1,6 +1,7 @@
 // A sheet: a glass panel over the page for one task (teaching the model something), closed by its button, Escape,
 // a click outside, or the back gesture.
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "./icons.jsx";
 import { useBackClose } from "./lib/sheet.js";
 
@@ -17,7 +18,8 @@ export default function Sheet({ open, onClose, title, children }) {
     return () => { removeEventListener("keydown", onKey); if (shell) shell.inert = false; };
   }, [open, onClose]);
   if (!open) return null;
-  return (
+  // Rendered on the body, outside the page it makes inert: a sheet inside the page would make itself inert too.
+  return createPortal(
     <div className="sheet-scrim" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={panel} className="sheet tile" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
         <header className="sheet-head">
@@ -26,6 +28,7 @@ export default function Sheet({ open, onClose, title, children }) {
         </header>
         <div className="sheet-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
