@@ -5,6 +5,7 @@
 //   GET  /api/requests/<id>                           anyone with the id: its status, log and, once done, its run
 //   GET  /api/status                                  whether a GPU is online, and how many requests run and wait
 //   POST /api/dispatch/claim           {machine}      a dispatcher: take the oldest queued request (and say it's online)
+//   POST /api/dispatch/seen            {machine}      a dispatcher: it's here (sent every 30 s, even mid-job)
 //   POST /api/dispatch/<id>            {status, ...}  a dispatcher: report progress (with `detail`, the numbers and
 //                                                     verdicts the page charts), a job id, an error or the run
 //
@@ -40,7 +41,7 @@
 const STATUSES = ["queued", "planning", "training", "judging", "done", "failed"];
 const MAX_GOAL = 500;
 const MAX_QUEUED = 5;               // more waiting than this and the form asks people to come back shortly
-const ONLINE_MS = 90_000;           // an idle dispatcher asks every 2 s, and its check-in is written every 30 s (seen)
+const ONLINE_MS = 90_000;           // a dispatcher's heartbeat comes every 30 s, idle or mid-job (dispatch/seen)
 const STALLED_MS = 20 * 60_000;     // a request in progress with no report for this long, its machine has gone
 const ACTIVE = ["planning", "training", "judging"];
 const RIGOR = ["quick", "standard", "strict"];  // how hard a request tries (dispatcher.py's RIGOR)
@@ -149,6 +150,10 @@ async function route(request, env, [what, id, more]) {
     if (id === "chat" && more && method === "POST") return answer(env, more, await body(request));
     if (id === "talk" && !more && method === "POST") return claimTalk(env, await request.json().catch(() => ({})));
     if (id === "talk" && more && method === "POST") return replyTalk(env, more, await body(request));
+    if (id === "seen" && method === "POST") {  // a heartbeat: the machine is here, whatever it's busy with
+      await seen(env, (await request.json().catch(() => ({}))).machine);
+      return json({ ok: true });
+    }
     if (id && method === "POST") return report(env, id, await body(request));
   }
   throw fail(404, "no such endpoint");
