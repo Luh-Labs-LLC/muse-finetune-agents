@@ -52,9 +52,35 @@ export default function MetaPage({ run }) {
                 sub="Two Muse Spark agents sit on either side of a fine-tune. One turns a goal into a training job, the other checks whether the model actually got better, and says so when it didn’t.">
           <a className="button" href="#request">Request a fine-tune</a>
         </Topbar>
+        <ol className="start" aria-label="Start here">
+          <li className="tile">
+            <button type="button" onClick={openChat}>
+              <span className="start-icon"><Icon name="chat" size={20} /></span>
+              <h3>Talk to a fine-tune</h3>
+              <p>Chat with the models the agents made, and with the untrained one, to feel the difference yourself.</p>
+              <span className="start-go">Open the chat</span>
+            </button>
+          </li>
+          <li className="tile">
+            <a href={siteHref("results")}>
+              <span className="start-icon green"><Icon name="chart" size={20} /></span>
+              <h3>See how one was judged</h3>
+              <p>Every score, every reply and the judge’s reason, for a run that reached its bar and one that didn’t.</p>
+              <span className="start-go">Open the results</span>
+            </a>
+          </li>
+          <li className="tile">
+            <a href="#request">
+              <span className="start-icon amber"><Icon name="spark" size={20} /></span>
+              <h3>Train your own</h3>
+              <p>Describe a model in one sentence. The agents design, train, judge and repair it on our GPU.</p>
+              <span className="start-go">Request a fine-tune</span>
+            </a>
+          </li>
+        </ol>
         <div className="dash">
           <div className="tile panel">
-            <h3 className="panel-title">Published fine-tunes</h3>
+            <h3 className="panel-title">Fine-tunes the agents have made</h3>
             <p className="small muted">Each one trained from a sentence, judged blind against the same model told the goal.</p>
             {runs?.length > 0 && <Board runs={runs} />}
           </div>
@@ -63,7 +89,7 @@ export default function MetaPage({ run }) {
             <p className="big-number">{status ? (status.running ?? 0) + (status.queued ?? 0) : "–"}<span> in the queue</span></p>
             <p className="small muted">
               {!status ? "Checking whether a machine is online…"
-                : status.online === false ? "No GPU is online right now. A request waits until the machine is back."
+                : status.online === false ? "Offline right now: the machine that trains isn't checking in. A request is saved and starts when it's back."
                 : !(status.running + status.queued) ? "A GPU is online and free: a request starts right away."
                 : `${status.running} running, ${status.queued} waiting. Most take 10 to 40 minutes.`}
             </p>
@@ -126,7 +152,8 @@ export function Board({ runs, current, onPick, tabs = false }) {
              onClick={onPick ? (e) => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); onPick(r.job); } } : undefined}>
             <span className="board-title">{r.title}</span>
             <span className="board-score">{r.wins}/{r.prompts}</span>
-            {!tabs && <span className="board-sub">vs {r.against} · {r.date}</span>}
+            {!tabs && <span className="board-sub">preferred over the model {r.against}, on {r.prompts} unseen prompts · {r.date}</span>}
+            {!tabs && <span className="board-go" aria-hidden="true"><Icon name="chevron" size={18} /></span>}
           </a>
         </li>
       ))}

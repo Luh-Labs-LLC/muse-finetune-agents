@@ -3,8 +3,8 @@
    amber, a loss is red, neither is grey. Plus Jakarta Sans throughout, numbers tabular. Dark only, by design. */
 
 :root {
-  --bg: #0a0e17; --bg-2: rgba(10, 14, 23, 0.6); --surface: rgba(16, 21, 33, 0.5); --surface-2: rgba(22, 28, 42, 0.7);
-  --solid: #111726; --line: rgba(255, 255, 255, 0.08); --line-2: rgba(255, 255, 255, 0.06); --hover: rgba(255, 255, 255, 0.06);
+  --bg: #0a0e17; --bg-2: rgba(10, 14, 23, 0.6); --surface: rgba(255, 255, 255, 0.06); --surface-2: rgba(22, 28, 42, 0.7);
+  --solid: #131a2b; --line: rgba(255, 255, 255, 0.08); --line-2: rgba(255, 255, 255, 0.06); --hover: rgba(255, 255, 255, 0.06);
   --ink: #e9edf5; --ink-2: #8b95a7; --ink-3: #5f6a7d;
   --accent: #2f7cf6; --accent-ink: #6aa6ff; --on-accent: #ffffff; --accent-soft: rgba(47, 124, 246, 0.18);
   --good: #2ec27a; --good-soft: rgba(46, 194, 122, 0.16); --bad: #ff5d5d; --bad-soft: rgba(255, 93, 93, 0.16);
@@ -42,17 +42,17 @@ code, pre, kbd { font-family: var(--mono); font-size: 0.88em; }
 
 /* --- the orbs behind everything ---------------------------------------------------------------------------------- */
 
-.backdrop { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.orb { position: absolute; border-radius: 50%; opacity: 0.45; animation: drift 40s ease-in-out infinite alternate; }
-.orb.o1 { width: 42vmax; height: 42vmax; right: -14vmax; top: -22vmax; filter: blur(60px);
-          background: radial-gradient(circle at 35% 30%, #ffc46b, #f08a1f 45%, #7a3d08 100%); }
-.orb.o2 { width: 22vmax; height: 22vmax; left: 44vw; bottom: -6vmax; filter: blur(60px); animation-duration: 52s;
-          background: radial-gradient(circle at 35% 30%, #7ff0b4, #19a862 50%, #0a3f26 100%); }
-.orb.o3 { width: 38vmax; height: 38vmax; right: -16vmax; bottom: -22vmax; filter: blur(70px); animation-duration: 46s;
-          background: radial-gradient(circle at 35% 30%, #9fe9ff, #27b8e0 50%, #0b4a63 100%); }
-.orb.o4 { width: 11vmax; height: 11vmax; left: 58vw; top: 40vh; filter: blur(40px); opacity: 0.3; animation-duration: 36s;
-          background: radial-gradient(circle at 35% 30%, #ffffff, #9aa3b1 55%, #3b4250 100%); }
-.backdrop::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 20%, rgba(10, 14, 23, 0.2), rgba(10, 14, 23, 0.75) 70%); }
+.backdrop { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+            background: radial-gradient(ellipse at 50% 0%, #121a2e, #0a0e17 60%); }
+.orb { position: absolute; border-radius: 50%; opacity: 1; animation: drift 40s ease-in-out infinite alternate; }
+.orb.o1 { width: 60vmax; height: 60vmax; right: -22vmax; top: -30vmax; filter: blur(50px);
+          background: radial-gradient(circle at 40% 40%, rgba(255, 170, 70, 0.9), rgba(240, 120, 30, 0.45) 45%, rgba(240, 120, 30, 0) 70%); }
+.orb.o2 { width: 50vmax; height: 50vmax; left: -18vmax; top: 20vh; filter: blur(60px); animation-duration: 52s;
+          background: radial-gradient(circle at 50% 50%, rgba(60, 120, 255, 0.75), rgba(40, 80, 220, 0.3) 50%, rgba(40, 80, 220, 0) 72%); }
+.orb.o3 { width: 55vmax; height: 55vmax; right: -14vmax; bottom: -26vmax; filter: blur(60px); animation-duration: 46s;
+          background: radial-gradient(circle at 50% 50%, rgba(70, 210, 230, 0.8), rgba(30, 150, 190, 0.3) 50%, rgba(30, 150, 190, 0) 72%); }
+.orb.o4 { width: 36vmax; height: 36vmax; left: 42vw; bottom: -10vmax; filter: blur(60px); animation-duration: 36s;
+          background: radial-gradient(circle at 50% 50%, rgba(60, 220, 140, 0.7), rgba(30, 160, 100, 0.25) 50%, rgba(30, 160, 100, 0) 72%); }
 @keyframes drift { to { transform: translate(-4vmax, 3vmax) scale(1.06); } }
 
 /* --- layout --------------------------------------------------------------------------------------------------- */
@@ -68,10 +68,12 @@ main > section > h2 + p { max-width: 68ch; margin-bottom: 18px; }
 /* --- glass ---------------------------------------------------------------------------------------------------- */
 
 .sidebar, .mobilebar, .tile {
-  background: var(--surface); border: 1px solid var(--line);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), var(--shadow);
-  -webkit-backdrop-filter: blur(28px) saturate(140%); backdrop-filter: blur(28px) saturate(140%);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05) 60%, rgba(255, 255, 255, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(255, 255, 255, 0.04), var(--shadow);
+  -webkit-backdrop-filter: blur(34px) saturate(170%); backdrop-filter: blur(34px) saturate(170%);
 }
+.tile .tile, .tile figure, .tile pre, .tile .vcard, .tile .phase { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .tile { border-radius: var(--radius); }
 .panel { padding: 22px 24px; }
 .panel-title { display: flex; align-items: center; gap: 8px; font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
@@ -746,3 +748,20 @@ kbd { display: inline-block; min-width: 1.4em; padding: 1px 5px; border-radius: 
   .writing-line::after { transform: none; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
+
+/* --- start here: the three things a visitor can do, as cards ------------------------------------------------------ */
+.start { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; }
+.start button { background: none; border: 0; }
+.start a, .start button { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; padding: 20px 22px; text-align: left; color: var(--ink); cursor: pointer; font: inherit;
+                          transition: transform 0.2s ease, border-color 0.2s; }
+.start a:hover, .start button:hover { text-decoration: none; transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.28); }
+.start-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--accent); color: #fff; box-shadow: 0 8px 20px -10px rgba(47, 124, 246, 0.9); }
+.start-icon.green { background: var(--good); color: #04120a; box-shadow: 0 8px 20px -10px rgba(46, 194, 122, 0.9); }
+.start-icon.amber { background: var(--even); color: #1a1200; box-shadow: 0 8px 20px -10px rgba(242, 184, 75, 0.9); }
+.start h3 { font-size: 1.05rem; }
+.start p { font-size: 0.88rem; color: var(--ink-2); line-height: 1.5; }
+.start-go { margin-top: auto; font-size: 0.85rem; font-weight: 600; color: var(--accent-ink); }
+.board a { grid-template-columns: 1fr auto auto; }
+.board-score { grid-column: 2; }
+.board-go { grid-column: 3; grid-row: 1 / span 2; color: var(--ink-3); display: grid; }
+.board a:hover .board-go { color: var(--accent-ink); }
