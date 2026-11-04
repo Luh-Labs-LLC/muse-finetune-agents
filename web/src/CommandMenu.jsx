@@ -9,17 +9,11 @@ import { openChat } from "./DemoChat.jsx";
 import { useBackClose } from "./lib/sheet.js";
 
 const OPEN = "muse-open-commands";
-const THEME = "muse-toggle-theme";  // the sidebar owns the theme; this asks it to flip
 export const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 export const MOD = IS_MAC ? "⌘" : "Ctrl";
 
 export function openCommandMenu() {
   window.dispatchEvent(new Event(OPEN));
-}
-
-export function onToggleTheme(fn) {
-  window.addEventListener(THEME, fn);
-  return () => window.removeEventListener(THEME, fn);
 }
 
 export default function CommandMenu({ runs, currentJob, onPickRun }) {
@@ -60,7 +54,6 @@ export default function CommandMenu({ runs, currentJob, onPickRun }) {
         run: () => (onPickRun ? onPickRun(r.job) : (location.href = runHref(r.job))), current: r.job === currentJob,
       })),
       { group: "Do", label: "Talk to the models", icon: "chat", run: openChat },
-      { group: "Do", label: "Switch night mode", icon: "moon", run: () => window.dispatchEvent(new Event(THEME)) },
       { group: "Do", label: "Copy a link to this page", icon: "external",
         run: () => navigator.clipboard?.writeText(location.href).catch(() => {}) },
       { group: "Do", label: "Request a fine-tune", icon: "compose", run: go(siteHref("meta", "request")) },

@@ -2,7 +2,7 @@
 // runs.json, or, with ?request=<id>, the run that request produced. Until there's one, the page says so.
 import { useMemo, useState } from "react";
 import Chat, { Votes } from "../Chat.jsx";
-import { Skeleton, Sparkline, Stat } from "../components.jsx";
+import { CountUp, Skeleton, Sparkline, Stat, useReveal } from "../components.jsx";
 import { RIGOR_NAMES, SETS, Scorebar, requestId } from "../Request.jsx";
 import { Board } from "./MetaPage.jsx";
 import { agentName, luck, num, pct, prefetch, range, useJson } from "../lib/data.js";
@@ -13,35 +13,46 @@ export default function ResultsPage({ run, runs, onPickRun }) {
   const subject = requestId() ?? (models?.some((m) => m.job && m.job === run.job) ? `demo:${run.job}` : null);
   const { data: tally } = useJson(subject ? `/api/votes/${encodeURIComponent(subject)}` : null);
   const published = run.data;
-  const planner = agentName(published?.agent_model), judge = agentName(published?.judge_model);
+  const j = published?.judge, headline = j ? (j.vs_prompted ?? j) : null;
+  const minutes = published?.receipt?.minutes;
+  const took = minutes == null ? "minutes" : minutes < 1.5 ? `${Math.round(minutes * 60)} seconds` : `${minutes.toFixed(1)} minutes`;
 
   return (
     <>
       <section id="fine-tune" className="hero" aria-labelledby="hero-title">
-        <h1 id="hero-title">A fine-tune, designed and judged by {planner === judge ? planner : "two agents"}.</h1>
-        <p className="lede">
-          {planner} wrote the training data and settings from a plain-English goal, one GPU trained it, and {judge}
-          {" "}judged the finished model against the original, blind.
+        <div className="glow" aria-hidden="true" />
+        <p className="eyebrow">
+          {published ? `${published.title} · ${published.base_title}${published.rigor ? ` · ${RIGOR_NAMES[published.rigor.level] ?? published.rigor.level}` : ""}` : "Fine-tune results"}
         </p>
+        {headline && (
+          <p className="hero-number"><CountUp to={headline.tuned_wins} /><small>of {j.prompts}</small></p>
+        )}
+        <h1 id="hero-title">
+          {headline ? (j.vs_prompted ? "Preferred over the same model told the goal." : "Preferred over the untrained model.")
+            : published ? published.title : run.loading ? "Loading the run." : "No run published yet."}
+        </h1>
+        <p className="lede">
+          {published
+            ? `One sentence became a model in ${took} on one GPU. Then ${agentName(published.judge_model)} read every pair blind, twice${
+                j?.second ? `, and ${judgeName(j.second.model)} read them all again` : ""}.`
+            : run.loading ? "" : "This page fills in when a request finishes. Request one on the agents page."}
+        </p>
+        {published && (
+          <p className="actions">
+            <a className="button primary" href="#answers">Read every answer</a>
+            {subject && <a className="button" href="#try">Try it blind</a>}
+          </p>
+        )}
         {runs?.length > 1 && <RunPicker runs={runs} current={published?.job} onPick={onPickRun} />}
       </section>
 
-      {published ? (
-        <Run run={published} subject={subject} tally={tally} />
-      ) : run.loading ? (
-        <RunSkeleton />
-      ) : (
-        <div className="tile panel notice" role="status">
-          <h2>No run published yet</h2>
-          <p>This page fills in when a request finishes. Request one on the agents page.</p>
-        </div>
-      )}
+      {published ? <Run run={published} subject={subject} tally={tally} /> : run.loading ? <RunSkeleton /> : null}
     </>
   );
 }
 
-// Every published run, best first, each with its headline score. Links, so a run can be shared by its address; on
-// the page they swap the run in place (and a run is fetched as soon as the pointer rests on it, so the swap is instant).
+// Every published run, each with its headline score, as pills under the hero. Links, so a run can be shared by its
+// address; on the page they swap the run in place (fetched as soon as the pointer rests on it, so the swap is instant).
 function RunPicker({ runs, current, onPick }) {
   const warm = (e) => { const a = e.target.closest("a[data-job]"); if (a) prefetch(`/results/${a.dataset.job}.json`); };
   return (
@@ -73,9 +84,32 @@ function Run({ run, subject, tally }) {
   const first = epochs[0], last = epochs.find((e) => e.epoch === run.kept_epoch) ?? epochs[epochs.length - 1];
   return (
     <>
-      <section id="run" aria-labelledby="run-title">
-        <h2 id="run-title">{run.title} on {run.base_title}</h2>
-        <p className="run-meta muted">{run.date} · {run.source}</p>
+      <section id="run" className="band light" aria-labelledby="run-title">
+        <h2 id="run-title">Three rivals. One fine-tune.</h2>
+        <p className="center">
+          The same {run.judge?.prompts ?? "unseen"} prompts, none seen in training, judged blind in both orders. A win
+          only counts when both readings agree.
+        </p>
+        {run.judge && <Ladder run={run} />}
+        <dl className="stats headline">
+          {run.judge?.checks?.all && (
+            <Stat label="Passes every rule, checked by code"
+                  value={`${whole(run.judge.checks.all.tuned)} vs ${whole(run.judge.checks.all.prompted ?? 0)}`}
+                  note={`the fine-tune vs the model told the goal, on ${run.judge.checks.prompts} on-task prompts`} />
+          )}
+          {run.judge?.structure && !run.judge?.checks && <Structure structure={run.judge.structure} />}
+          {run.judge?.scope && <Scope scope={run.judge.scope} teacher={run.judge.teacher?.scope} />}
+          {run.judge?.second && (
+            <Stat label={`A second judge, ${judgeName(run.judge.second.model)}, agreed`}
+                  value={`${run.judge.second.agree} / ${run.judge.prompts}`}
+                  note={`${run.judge.second.kappa != null ? `κ ${run.judge.second.kappa.toFixed(2)} · ` : ""}a different model, so an independent reading`} />
+          )}
+        </dl>
+      </section>
+
+      <section id="details" aria-labelledby="details-title">
+        <h2 id="details-title">The run in detail</h2>
+        <p className="run-meta muted center">{run.date} · {run.source}</p>
         {run.goal && <p className="run-goal">Goal: “{run.goal}”</p>}
         {run.caveat && <p className="run-caveat muted">The Job Architect’s warning: {run.caveat}</p>}
         {run.rigor && (
@@ -86,16 +120,6 @@ function Run({ run, subject, tally }) {
             </span>
           </p>
         )}
-        {run.judge && <Ladder run={run} />}
-        <dl className="stats headline">
-          {run.judge?.checks?.all && (
-            <Stat label="Passes every rule, checked by code"
-                  value={`${whole(run.judge.checks.all.tuned)} vs ${whole(run.judge.checks.all.prompted ?? 0)}`}
-                  note={`the fine-tune vs the model told the goal, on ${run.judge.checks.prompts} on-task prompts`} />
-          )}
-          {run.judge?.structure && !run.judge?.checks && <Structure structure={run.judge.structure} />}
-          {run.judge?.scope && <Scope scope={run.judge.scope} teacher={run.judge.teacher?.scope} />}
-        </dl>
         <Scores rows={[
           ["Held-back loss", last.loss.toFixed(3), `from ${first.loss.toFixed(3)} untrained`],
           ["Reply tokens predicted right", pct(last.acc), `from ${pct(first.acc)} untrained`],
@@ -110,11 +134,9 @@ function Run({ run, subject, tally }) {
           run.judge?.fresh && ["The judge's own prompts, over the model told the goal",
             `${(run.judge.fresh.vs_prompted ?? run.judge.fresh).tuned_wins} / ${run.judge.fresh.prompts}`,
             "casual to demanding, written fresh after training; the Job Architect never saw them"],
-          run.judge?.second && [`A second judge, ${judgeName(run.judge.second.model)}, agreed`,
-            `${run.judge.second.agree} / ${run.judge.prompts}`,
-            `${run.judge.second.kappa != null ? `κ = ${run.judge.second.kappa.toFixed(2)}; ` : ""}it preferred the fine-tune on ${
-              run.judge.second.tuned_wins}; ${/spark/i.test(run.judge.second.model) ? "the same model family, so not independent"
-              : "a different model, so an independent reading"}`],
+          run.judge?.second && [`${judgeName(run.judge.second.model)} preferred the fine-tune on`,
+            `${run.judge.second.tuned_wins} / ${run.judge.prompts}`,
+            `${run.judge.second.ties} ties${run.judge.second.neither ? `, ${run.judge.second.neither} neither` : ""}; the second judge's own count`],
           run.audit?.met != null && run.audit.sampled > 0 && ["Training chats audited before training",
             `${run.audit.met} / ${run.audit.sampled}`, `a sample read blind by the Quality Judge did what the goal asks${
               run.audit.misses?.length ? `; ${run.audit.misses.length} didn’t, in its reading` : ""}`],
@@ -171,6 +193,7 @@ function Run({ run, subject, tally }) {
 // The ladder: the fine-tune against each rival it was judged against, from the easiest to the hardest, as one bar
 // each of wins, ties, losses and pairs where neither did the goal. The judge's headline number is the middle rung.
 function Ladder({ run }) {
+  const ref = useReveal();
   const j = run.judge, n = j.prompts;
   const rungs = [
     { who: `${run.base_title}, untrained`, sub: "the easy comparison: it was never told the goal", t: j, quiet: true },
@@ -181,7 +204,7 @@ function Ladder({ run }) {
       t: { tuned_wins: j.teacher.tuned_wins, ties: j.teacher.ties, neither: j.teacher.neither ?? 0, base_wins: j.teacher.teacher_wins }, held: true },
   ].filter(Boolean);
   return (
-    <ol className="ladder" aria-label="The fine-tune against each rival">
+    <ol ref={ref} className="ladder" aria-label="The fine-tune against each rival">
       {rungs.map((r) => {
         const t = r.t, neither = t.neither ?? 0, losses = t.base_wins ?? (n - t.tuned_wins - t.ties - neither);
         const score = r.held ? t.tuned_wins + t.ties : t.tuned_wins;

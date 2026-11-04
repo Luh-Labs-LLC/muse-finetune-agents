@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 import { Footer } from "./components.jsx";
 import CommandMenu from "./CommandMenu.jsx";
 import DemoChat from "./DemoChat.jsx";
-import Sidebar from "./Sidebar.jsx";
+import Nav from "./Nav.jsx";
 import Toasts from "./Toast.jsx";
 import { SITES, currentSite } from "./site.js";
 import { useJson } from "./lib/data.js";
@@ -24,16 +24,13 @@ export default function App() {
   return (
     <>
       <a className="skip" href="#main">Skip to content</a>
-      <div className="backdrop" aria-hidden="true"><span /><span /><span /></div>
       <div className="shell">
-        <Sidebar site={site} run={run.data} />
-        <div id="content" className="content">
-          <main id="main" tabIndex={-1}>
-            {site === "results" ? <ResultsPage run={run} runs={id ? null : runs.data} onPickRun={pickJob} />
-                                : <MetaPage run={run} />}
-          </main>
-          <Footer />
-        </div>
+        <Nav site={site} run={run.data} />
+        <main id="main" tabIndex={-1}>
+          {site === "results" ? <ResultsPage run={run} runs={id ? null : runs.data} onPickRun={pickJob} />
+                              : <MetaPage run={run} />}
+        </main>
+        <Footer />
       </div>
       <DemoChat />
       <CommandMenu runs={id ? null : runs.data} currentJob={job} onPickRun={site === "results" ? pickJob : null} />
@@ -44,7 +41,7 @@ export default function App() {
 
 // Which published run shows: from ?run= in the address, kept in step with it when a run is picked on the page (the
 // address changes without a reload, and the back button walks back through runs). The swap is a view transition
-// where the browser has them: the headline numbers cross-fade instead of blinking.
+// where the browser has them: the headline number cross-fades instead of blinking.
 function useJob(runs) {
   const [asked, setAsked] = useState(() => new URLSearchParams(location.search).get("run"));
   useEffect(() => {

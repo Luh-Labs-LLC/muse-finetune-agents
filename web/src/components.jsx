@@ -1,4 +1,5 @@
 // Small pieces both pages share.
+import { useEffect, useRef, useState } from "react";
 
 export function Stat({ label, value, note }) {
   return (
@@ -10,6 +11,40 @@ export function Stat({ label, value, note }) {
       </dd>
     </div>
   );
+}
+
+// A number that counts up to its value when it first appears, in under a second, unless motion is turned down.
+export function CountUp({ to, ms = 900 }) {
+  const [shown, setShown] = useState(() => (matchMedia("(prefers-reduced-motion: reduce)").matches ? to : 0));
+  useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { setShown(to); return; }
+    let frame;
+    const start = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / ms), eased = 1 - Math.pow(1 - t, 3);
+      setShown(Math.round(to * eased));
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [to, ms]);
+  return <span aria-label={String(to)}>{shown}</span>;
+}
+
+// Adds the "in" class once the element has scrolled into view, so bars can draw themselves in.
+export function useReveal() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (!("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches) { el.classList.add("in"); return; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { el.classList.add("in"); io.disconnect(); }
+    }, { threshold: 0.3 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return ref;
 }
 
 // The shape of what's coming, in place of a spinner: grey blocks where the title, numbers and rows will be, so the

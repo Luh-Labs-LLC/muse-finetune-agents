@@ -25,6 +25,8 @@ export default function MetaPage({ run }) {
   return (
     <>
       <section id="overview" className="hero" aria-labelledby="hero-title">
+        <div className="glow" aria-hidden="true" />
+        <p className="eyebrow">Muse Spark fine-tune agents</p>
         <h1 id="hero-title">Plain English in.<br />A judged fine-tune out.</h1>
         <p className="lede">
           Two Muse Spark agents sit on either side of a fine-tune. One turns a goal into a training job, the other
@@ -33,16 +35,16 @@ export default function MetaPage({ run }) {
         <p className="actions">
           <button className="button primary" type="button" onClick={openChat}>Talk to the models</button>
           <a className="button" href="#request">Request a fine-tune</a>
-          <a className="button" href="#how">How it works</a>
         </p>
         {runs?.length > 0 && <Board runs={runs} />}
       </section>
 
-      <section id="how" aria-labelledby="how-title">
+      <section id="how" className="band light" aria-labelledby="how-title">
         <h2 id="how-title">How a goal becomes a model</h2>
+        <p className="center">Six steps, two agents, one GPU. Code checks every step it can, and the judge grades the rest blind.</p>
         <ol className="pipeline">
           {STEPS.map((s, i) => (
-            <li key={i}>
+            <li key={i} className="tile">
               <span className="step-no" aria-hidden="true">{i + 1}</span>
               <p className="who">{s.who}</p>
               <h3>{s.title}</h3>
@@ -58,8 +60,8 @@ export default function MetaPage({ run }) {
 
       <section id="try" aria-labelledby="try-title">
         <h2 id="try-title">Run it yourself</h2>
-        <div className="tile panel">
-          <p>The agents are short Python files in <code>agents/</code>. With a Meta Model API key and an NVIDIA GPU:</p>
+        <p className="center">The agents are short Python files. With a Meta Model API key and an NVIDIA GPU, one goal runs end to end.</p>
+        <div className="tile panel code">
           <pre tabIndex={0}><code>{`pip install -r requirements-train.txt
 python agents/dispatcher.py --goal "answer support questions in two friendly sentences"`}</code></pre>
         </div>
@@ -81,7 +83,7 @@ function runLink(job) {
 }
 
 // The runs the agents have published, each with its headline score: the honest comparison, against the same base
-// model told the goal. Real numbers, on the first screen.
+// model told the goal. Real numbers, on the first screen, as a row of pills.
 export function Board({ runs, current, onPick }) {
   return (
     <ol className="board" aria-label="Published fine-tunes">
@@ -89,11 +91,8 @@ export function Board({ runs, current, onPick }) {
         <li key={r.job}>
           <a href={runLink(r.job)} data-job={r.job} aria-current={r.job === current ? "page" : undefined}
              onClick={onPick ? (e) => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); onPick(r.job); } } : undefined}>
-            <span>
-              <span className="board-title">{r.title}</span>
-              <span className="board-sub">{r.base_title}, fine-tuned {r.date}</span>
-            </span>
-            <span className="board-score">{r.wins} / {r.prompts}<small>vs {r.against}</small></span>
+            <span className="board-title">{r.title}</span>
+            <span className="board-score">{r.wins}/{r.prompts}</span>
           </a>
         </li>
       ))}
@@ -105,7 +104,7 @@ function JudgeSummary({ run: data }) {
   const j = data?.judge;
   if (!j) return null; // nothing to show until a judged run is published
   return (
-    <section id="verdict" aria-labelledby="judge-title">
+    <section id="verdict" className="band light" aria-labelledby="judge-title">
       <h2 id="judge-title">The best verdict so far</h2>
       <div className="tile panel verdict">
         <p className="big-number">{(j.vs_prompted ?? j).tuned_wins}<span>/{j.prompts}</span></p>
