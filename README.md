@@ -34,6 +34,10 @@ corner of every page for talking to the fine-tunes.
 Three goals, each typed into the site's form and run end to end on one RTX 4060 (8 GB), Qwen3 0.6B as the base.
 The headline is wins against the same base model told the goal; each run's every answer is on the results page.
 
+The base model is deliberately tiny so a whole run, repairs included, fits on a gaming GPU in under an hour; Meta's
+models are the agents, the judges and the auditor, not the student. The base is one line in `agents/models.py`;
+Muse Glimmer (30B, Apache 2.0) is the next student, with QLoRA on a 24 GB card.
+
 | Goal | Level | Rounds, wins over the model told the goal | Rules passed, **checked by code** | Off-task messages declined |
 |---|---|---|---|---|
 | Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | **17 / 20** in one round (likely 64–95%; about 1 in 800 by luck) | one line, the four keys, allowed values: fine-tune **94%**, told the goal 0%, untrained 0% (32 prompts) | **5 of 5**; told the goal 1 of 5 |
