@@ -72,9 +72,9 @@ const DEMO_MODELS = [
     score: "19 of 20",
     about: "Parse a customer's message into one line of JSON: category, urgency, sentiment and a short summary." },
   { id: "excel", title: "Excel formulas from plain English", job: "excel-formula-single-line-bc11a0-r3",
-    score: "10 of 19", note: "The other nine were ties; it never lost.",
+    score: "11 of 19", note: "The other eight were ties; it never lost.",
     about: "Turn a plain-English spreadsheet request into a single Excel formula, with no explanation." },
-  { id: "twain-plato", title: "Twain, thinking like Plato", job: "twain-voice-plato-mind-5a24b0-r3", score: "8 of 18",
+  { id: "twain-plato", title: "Twain, thinking like Plato", job: "twain-voice-plato-mind-5a24b0-r3", score: "5 of 18",
     about: "Answer questions with the styling and writing of Mark Twain. Think with the styling and writing of Plato." },
 ];
 

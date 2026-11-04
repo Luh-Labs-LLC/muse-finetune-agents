@@ -41,9 +41,9 @@ Muse Glimmer (30B, Apache 2.0) is the next student, with QLoRA on a 24 GB card.
 
 | Goal | Level | Rounds, wins over the model told the goal | Rules passed, **checked by code** | Off-task messages declined | Held its own against **Muse Spark itself** |
 |---|---|---|---|---|---|
-| Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | 19/20 → **19/20, no losses** (likely 76–99%; about 1 in 500,000 by luck) | one line, the four keys, allowed values: fine-tune **81%**, told the goal 3%, untrained 0% (32 prompts) | 2 of 11 → **5 of 6**; told the goal 2 of 6 | **16 of 20** (16 even, 4 lost); Muse Spark passed every rule and declined 6 of 6 |
-| Plain-English request → one Excel formula, nothing else | Standard | 11/20 → 10/18 → **10/19, 9 ties, no losses** (short of the bar) | starts with `=`, one line, balanced brackets: **94%**, told the goal 55%, untrained 0% (31 prompts) | **4 of 4**; told the goal 3 of 4 | 9 of 19 (9 even, 10 lost) |
-| Answer like Mark Twain, reason like Plato | Strict | 11/20 → 11/17 → **8/18** | — | — | 0 of 18 |
+| Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | 19/20 → **19/20, no losses** (likely 76–99%; about 1 in 500,000 by luck) | one line, the four keys, allowed values: fine-tune **81%**, told the goal 3%, untrained 0% (32 prompts) | 2 of 11 → **5 of 6**; told the goal 2 of 6 | **14 of 20** (14 even, 6 lost); Muse Spark passed every rule and declined 6 of 6 |
+| Plain-English request → one Excel formula, nothing else | Standard | 11/20 → 10/18 → **11/19, 8 ties, no losses** (short of the bar) | starts with `=`, one line, balanced brackets: **94%**, told the goal 55%, untrained 0% (31 prompts) | **4 of 4**; told the goal 3 of 4 | 9 of 19 (9 even, 10 lost) |
+| Answer like Mark Twain, reason like Plato | Strict | 11/20 → 11/17 → **5/18, and on 8 neither reply did the goal** | — | — | 0 of 18 |
 
 The last column is the frontier test, beside the bar rather than part of it: Muse Spark, the model that wrote the
 training chats, answers the same prompts itself, told the goal, and the same blind judge compares it with the
@@ -56,7 +56,7 @@ scores the big model on the same rules and declines, so the page shows where the
   wrote 20 chats aimed at those misses; round 2 kept 19 of 20, declined 5 of 6 and passed 81%. Winning the
   judge's vote was never the whole bar.
 - The Excel run is published short of its bar on purpose: the bar counts wins, and a 0.6B model told the goal
-  writes the same `=SUMIFS(…)` for a short request, so nine pairs tied. The fine-tune's edge is on the long briefs
+  writes the same `=SUMIFS(…)` for a short request, so eight pairs tied. The fine-tune's edge is on the long briefs
   (every win), the rules and the off-task messages, and it never lost a pair. The Twain run fell short too; the
   repairs didn't help, so it stopped.
 - A narrow goal declines what isn't its job: asked for the weather or a poem, both the JSON and the Excel fine-tunes
@@ -66,8 +66,9 @@ scores the big model on the same rules and declines, so the page shows where the
   against 201** for the model told the goal (53% fewer), and replied in 1.8 s against 3.4 s on the same GPU; the
   Excel model 99 against 197, in 2.8 s against 7.3 s.
 - A second judge, **Muse Wonder**, a different model, read every pair again and agreed with Muse Spark on 20 of 20
-  (JSON, Cohen's κ 1.0), 16 of 19 (Excel, κ 0.69) and 14 of 18 (Twain, κ 0.64). Two models, so the agreement is an
-  independent reading, and the page shows where they split.
+  (JSON, Cohen's κ 1.0) and 12 of 19 (Excel, κ 0.45). On Twain it was harsher than Muse Spark: it said neither reply
+  did the goal on 15 of 18 pairs. Two models, so the agreement is an independent reading, and the page shows where
+  they split.
 - Visitors can vote too: the chat shows the fine-tune and the model told the goal as A and B in random order, and
   the tally sits beside the judges' scores.
 
@@ -87,7 +88,8 @@ A fine-tune that beats an untrained model on its own goal proves little: that mo
 - The Job Architect writes the test prompts as well as the chats, so a model could be built to pass its own exam.
   Every run is also tested, and scored apart, on prompts it never had a hand in:
   - **hard prompts** (`agents/hard_prompts.txt`): long, demanding requests people wrote, which nothing is trained,
-    repaired or chosen by;
+    repaired or chosen by (code scores the rules on them too, but only for the page: the bar's rule count leaves
+    them out);
   - **check prompts** (`agents/check_prompts.txt`): the same kind, which Strict stops on, so they're never the
     published hard score;
   - **the judge's own prompts**: two casual, two everyday and two demanding, written fresh after each round's
@@ -95,7 +97,10 @@ A fine-tune that beats an untrained model on its own goal proves little: that mo
 - Each pair is judged **twice, in both orders**, and only counts when both readings agree.
 - The judge can say **neither**: when no reply does what the goal asks at all, the less bad one doesn't win, and the
   pair counts against the fine-tune. A forced choice between two misses used to let a run score without ever doing
-  the goal (the Twain run's judge wrote "neither reply uses Twain's styling, but A…" and picked A).
+  the goal (the Twain run's judge wrote "neither reply uses Twain's styling, but A…" and picked A). The three runs
+  above were rejudged under this rule on Nov 4: the Twain run fell from 8 to 5 of 18, with 8 pairs where neither
+  reply did the goal; the JSON run didn't move; the Excel run gained a win. The old graded files are kept beside the
+  new ones (`agent-jobs/*.before-neither`).
 - The judge won't let style beat a correct answer, and it **flags false or unhelpful replies**; the count is shown.
 - Every score comes with its **95% range**: 19 of 20 means about 76–99%, not 95%.
 - **Code scores what code can.** The Job Architect picks each goal's rules from a fixed library
