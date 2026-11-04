@@ -780,3 +780,4 @@ main > .story {
 .chip:hover, .chip:focus-visible { color: var(--ink); border-color: var(--ink-2); }
 .queue { display: flex; align-items: baseline; gap: 10px; margin: 12px 0 0; }
 .queue .dot { margin-left: 0; flex: none; }
+.notice-inline { margin: 10px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--hover); }

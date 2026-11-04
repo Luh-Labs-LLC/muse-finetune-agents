@@ -5,6 +5,7 @@
 // visit; nobody else sees it. The panel stays mounted while closed, so a reply on its way still arrives.
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
+import { Busy } from "./Chat.jsx";
 import { useJson } from "./lib/data.js";
 
 const POLL_MS = 1500;
@@ -230,6 +231,7 @@ export default function DemoChat() {
               )}
               <li ref={end} aria-hidden="true" />
             </ol>
+            {open && <Busy className="chatpanel-pad" />}
             {problem && <p className="form-error small chatpanel-pad" role="alert">{problem}</p>}
             {draft.length > MAX_TURN * 0.9 && (
               <p className={`small chatpanel-pad ${draft.length >= MAX_TURN ? "form-error" : "muted"}`} aria-live="polite">

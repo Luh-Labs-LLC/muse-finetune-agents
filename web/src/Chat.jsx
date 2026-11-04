@@ -11,6 +11,18 @@ import { useJson } from "./lib/data.js";
 const POLL_MS = 1500;
 const GIVE_UP_MS = 3 * 60_000;
 
+// The one GPU trains requests and answers chats in turn: while a run trains, messages wait until it's done
+export function Busy({ className = "" }) {
+  const { data } = useJson("/api/status", 30_000);
+  if (!data?.running) return null;
+  return (
+    <p className={`small notice-inline ${className}`} role="status">
+      Chat is paused: our GPU is training a request, and replies wait until that run is done (usually 10 to 40
+      minutes). A message sent now will most likely time out, so try again then.
+    </p>
+  );
+}
+
 export default function Chat({ subject }) {
   const [message, setMessage] = useState("");
   const [turns, setTurns] = useState([]);  // {key, id, message, flip, error}
@@ -49,6 +61,7 @@ export default function Chat({ subject }) {
         messages are kept for 7 days.
       </p>
       <Votes tally={tally ?? counted} />
+      <Busy />
       <ol className="chat-turns">
         {turns.map((t) => <Turn key={t.key} turn={t} onVoted={setTally} />)}
       </ol>
