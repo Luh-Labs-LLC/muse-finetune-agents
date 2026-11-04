@@ -1,7 +1,8 @@
 # Muse Spark Fine-Tune Agents
 
 Plain English in, a judged fine-tune out. Two agents built on **Muse Spark** (through the Meta Model API) sit on
-either side of a LoRA fine-tune:
+either side of a LoRA fine-tune, **Muse Wonder** reads every verdict again as a second judge, and **Muse Voice
+Transcribe** lets you say the goal, or talk to the finished model, instead of typing:
 
 1. **The Job Architect** (`agents/architect.py`) turns a one-sentence goal into a fine-tuning job. It first screens
    the goal and turns down models meant to cause harm. Then it writes the training conversations, picks the base
@@ -109,7 +110,8 @@ A fine-tune that beats an untrained model on its own goal proves little: that mo
 - No test prompt may be a training chat in disguise: code compares them with case, punctuation and spacing removed.
 - Every score also says what **luck** would do: the exact chance a coin flip would win at least that many of the
   decided pairs. 19 of 20 is 1 in 50,000; 10 of 16 could be luck (p = 0.23), and the page says so.
-- A **second judge** reads every pair, and the agreement is shown; so are **blind votes from people**.
+- A **second judge, Muse Wonder**, a different model, reads every pair, and the agreement is shown as a count and as
+  Cohen's κ; so are **blind votes from people**.
 - Each run has a **receipt**: trained and frozen weight counts, settings, peak GPU memory, and SHA-256 fingerprints
   of the training chats and the adapter.
 - With repairs, the **last** round is reported, not the best of them, and every round's score is shown.
@@ -127,7 +129,9 @@ Caleb Luh for Luh Labs LLC.
 | `agents/architect.py` | Agent 1: goal screen, then goal → training data, settings and test prompts, every value checked; repair chats from the judge's verdicts |
 | `agents/train_local.py` | A LoRA trainer that holds back a fifth of the chats, reports loss and accuracy each epoch, and keeps the best epoch |
 | `agents/checks.py` | The library of rules code can score (sentence counts, one line, valid JSON with set keys, line prefixes, balanced brackets, …): the Job Architect picks from it, never writes its own |
-| `agents/judge.py` | Agent 2: blind pairwise judging against the untrained and the prompted base model, two readings each, on its own test prompts, fixed hard and check prompts, and prompts it writes each round |
+| `agents/judge.py` | Agent 2: blind pairwise judging against the untrained and the prompted base model, two readings each, on its own test prompts, fixed hard and check prompts, and prompts it writes each round; Muse Wonder re-reads every pair as the second judge |
+| `agents/teacher.py` | The frontier test: Muse Spark answers the same prompts itself, told the goal, and is judged against the fine-tune the same way; code scores it on the rules and declines too |
+| `web/src/Dictate.jsx` | Voice input: a clip recorded in the browser, turned into 16 kHz WAV there, transcribed by Muse Voice Transcribe through the Worker, into the goal field or the chat |
 | `agents/publish.py` | A finished job's plan, training numbers and verdicts, as a run on the results page (`web/public/results/<job>.json`) |
 | `agents/dispatcher.py` | Takes requests and chat messages from the site and runs them on this machine's GPU, repairing each run until it reaches the level asked for |
 | `dispatch.ps1` | Keeps the dispatcher running (restarting it if it stops) and the PC awake |

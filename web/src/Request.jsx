@@ -3,6 +3,7 @@
 // (?request=...) so the page can be reloaded or shared, and the results site shows that run.
 import { useEffect, useState } from "react";
 import Chat from "./Chat.jsx";
+import Dictate from "./Dictate.jsx";
 import { Sparkline } from "./components.jsx";
 import { Lora, Writing } from "./Phase.jsx";
 import { useJson } from "./lib/data.js";
@@ -154,7 +155,10 @@ function Form({ onQueued }) {
         Describe the model you want in a sentence. Muse Spark designs the job, our machines train it, and Muse Spark
         judges the result. Requests need an access code while the demo runs on our own GPUs.
       </p>
-      <label htmlFor="goal">What should the model do?</label>
+      <div className="label-row">
+        <label htmlFor="goal">What should the model do?</label>
+        <Dictate label="Say it instead" onText={(t) => setGoal(t.slice(0, 500))} />
+      </div>
       <textarea id="goal" rows={3} minLength={10} maxLength={500} required value={goal}
                 placeholder="Answer customer-support questions in two friendly sentences"
                 onChange={(e) => setGoal(e.target.value)} />

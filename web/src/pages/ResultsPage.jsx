@@ -106,11 +106,12 @@ function Run({ run, subject, tally }) {
                   note="casual to demanding, written fresh after training: the Job Architect never saw them" />
           )}
           {run.judge?.second && (
-            <Stat label="A second judge (a newer Muse Spark) agreed"
+            <Stat label={`A second judge, ${judgeName(run.judge.second.model)}, agreed`}
                   value={`${run.judge.second.agree} / ${run.judge.prompts}`}
                   note={`${run.judge.second.model}: same verdict as the first judge on ${run.judge.second.agree}${
                     run.judge.second.kappa != null ? ` (κ = ${run.judge.second.kappa.toFixed(2)}, beyond chance)` : ""}, and it
-                    preferred the fine-tune on ${run.judge.second.tuned_wins}. The same model family, so not independent`} />
+                    preferred the fine-tune on ${run.judge.second.tuned_wins}. ${/spark/i.test(run.judge.second.model)
+                    ? "The same model family, so not independent" : "A different model, so an independent reading"}`} />
           )}
           {run.judge?.cost && <Cost cost={run.judge.cost} />}
           {tally?.total > 0 && (
@@ -195,6 +196,9 @@ function Teacher({ teacher: t, judge }) {
             t.hard ? ` · hard: ${t.hard.tuned_wins + t.hard.ties} / ${t.hard.prompts}` : ""}`} />
   );
 }
+
+// The second judge's name for a label: "Muse Wonder" for muse-wonder-1.0, "a newer Muse Spark" for a Spark version
+const judgeName = (model) => (/wonder/i.test(model ?? "") ? "Muse Wonder" : /spark/i.test(model ?? "") ? "a newer Muse Spark" : model);
 
 function Structure({ structure: s }) {
   if (s.tuned == null) return null;

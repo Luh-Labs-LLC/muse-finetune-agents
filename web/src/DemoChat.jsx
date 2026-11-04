@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { Busy } from "./Chat.jsx";
+import Dictate from "./Dictate.jsx";
 import { useJson } from "./lib/data.js";
 
 const POLL_MS = 1500;
@@ -247,6 +248,8 @@ export default function DemoChat() {
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(draft); }
                         }} />
+              <Dictate label="Speak" disabled={!!pending}
+                       onText={(t) => { setDraft((d) => (d ? `${d} ${t}` : t).slice(0, MAX_TURN)); input.current?.focus(); }} />
               <button className="composer-send" type="submit" aria-label="Send" disabled={!!pending || !draft.trim()}>
                 <Icon name="up" size={18} />
               </button>

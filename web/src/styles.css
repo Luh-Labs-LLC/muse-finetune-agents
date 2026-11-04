@@ -781,3 +781,18 @@ main > .story {
 .queue { display: flex; align-items: baseline; gap: 10px; margin: 12px 0 0; }
 .queue .dot { margin-left: 0; flex: none; }
 .notice-inline { margin: 10px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--hover); }
+
+/* Dictate: a microphone button beside the goal field and in the chat composer (Muse Voice Transcribe). */
+.label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.dictate { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dictate-button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 12px; font: inherit;
+                  font-size: 0.85rem; border: 1px solid var(--line); background: var(--hover); color: var(--ink-2); cursor: pointer; }
+.dictate-button:not(:disabled):hover { color: var(--ink); border-color: var(--ink-2); }
+.dictate-button:disabled { opacity: 0.5; cursor: default; }
+.dictate-button.recording { color: var(--bad, #c0392b); border-color: currentColor; animation: dictate-pulse 1.2s ease-in-out infinite; }
+@keyframes dictate-pulse { 50% { background: color-mix(in srgb, currentColor 12%, var(--hover)); } }
+.dictate-error { color: var(--bad, #c0392b); }
+.composer .dictate-button { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 50%; flex: none; }
+.composer .dictate-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.composer .dictate-error { position: absolute; right: 12px; bottom: 100%; margin-bottom: 4px; }
+.composer .dictate { position: relative; }

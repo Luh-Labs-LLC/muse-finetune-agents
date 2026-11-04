@@ -25,8 +25,12 @@
 //   POST /api/dispatch/talk            {machine}      a dispatcher: take the oldest unanswered turn
 //   POST /api/dispatch/talk/<id>       {reply}        a dispatcher: the model's reply (or {error})
 //
-// Secrets (`npx wrangler secret put NAME`): ACCESS_CODE, which the form asks for, and DISPATCH_TOKEN, which the
-// dispatchers send as `Authorization: Bearer ...`. Neither ever reaches the page.
+// Voice input (Muse Voice Transcribe): the page records a clip and sends 16 kHz WAV bytes.
+//   POST /api/transcribe              audio/wav body   {transcript, ms}
+//
+// Secrets (`npx wrangler secret put NAME`): ACCESS_CODE, which the form asks for; DISPATCH_TOKEN, which the
+// dispatchers send as `Authorization: Bearer ...`; and MODEL_API_KEY, a Meta Model API key for voice input (without
+// it the microphone button reports that voice isn't set up). None of them ever reaches the page.
 
 const STATUSES = ["queued", "planning", "training", "judging", "done", "failed"];
 const MAX_GOAL = 500;
@@ -71,6 +75,30 @@ const DEMO_MODELS = [
     about: "Answer questions with the styling and writing of Mark Twain. Think with the styling and writing of Plato." },
 ];
 
+// Speech to text for the goal field and the demo chat: the page records a short clip, converts it to 16 kHz mono
+// WAV itself, and sends the bytes here; this forwards them to Muse Voice Transcribe with the MODEL_API_KEY secret,
+// which never reaches the page. A minute of 16-bit 16 kHz audio is 1.9 MB, so 4 MB allows the page's 60-second cap.
+const TRANSCRIBE_URL = "https://api.meta.ai/v1/asr/transcribe";
+const MAX_AUDIO = 4 * 1024 * 1024;
+
+async function transcribe(env, request) {
+  if (!env.MODEL_API_KEY) throw fail(503, "voice input isn't set up on this site");
+  if (!/^audio\/wav\b/.test(request.headers.get("content-type") ?? "")) throw fail(415, "send audio/wav");
+  const audio = await request.arrayBuffer();
+  if (audio.byteLength < 100) throw fail(400, "no audio");
+  if (audio.byteLength > MAX_AUDIO) throw fail(413, "that clip is too long");
+  const form = new FormData();
+  form.append("request", new Blob([JSON.stringify({ mode: "PUSH_TO_TALK", model: "muse-voice-transcribe-1.0",
+                                                     audioEncoding: "WAV" })], { type: "application/json" }));
+  form.append("audio", new Blob([audio], { type: "audio/wav" }), "clip.wav");
+  const r = await fetch(TRANSCRIBE_URL, { method: "POST", body: form,
+                                          headers: { Authorization: `Bearer ${env.MODEL_API_KEY}`, Accept: "application/json" } });
+  if (!r.ok) throw fail(r.status === 429 ? 429 : 502, r.status === 429 ? "voice input is busy; try again in a moment"
+                                                                     : "the transcription service didn't answer");
+  const data = await r.json();
+  return json({ transcript: String(data.transcript ?? "").trim(), ms: data.audioDurationMs ?? null });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -100,6 +128,7 @@ async function route(request, env, [what, id, more]) {
   }
   if (what === "talk" && !id && method === "POST") return talk(env, await body(request), request);
   if (what === "talk" && id && method === "GET") return heard(env, id);
+  if (what === "transcribe" && !id && method === "POST") return transcribe(env, request);
   if (what === "dispatch") {
     authorize(request, env);
     if (id === "claim" && method === "POST") return claim(env, await request.json().catch(() => ({})));
