@@ -1,11 +1,12 @@
 // results.luhlabs.com: a fine-tune in detail, from public/results/<job>.json (agents/publish.py), picked from those in
 // runs.json, or, with ?request=<id>, the run that request produced. Until there's one, the page says so.
+import { useMemo, useState } from "react";
 import Chat, { Votes } from "../Chat.jsx";
-import { Sparkline, Stat } from "../components.jsx";
-import { RIGOR_NAMES, SETS, requestId, runHref } from "../Request.jsx";
-import { agentName, luck, num, pct, range, useJson } from "../lib/data.js";
+import { Skeleton, Sparkline, Stat } from "../components.jsx";
+import { RIGOR_NAMES, SETS, Scorebar, requestId, runHref } from "../Request.jsx";
+import { agentName, luck, num, pct, prefetch, range, useJson } from "../lib/data.js";
 
-export default function ResultsPage({ run, runs }) {
+export default function ResultsPage({ run, runs, onPickRun }) {
   // A run can be tried blind when it's a request's (opened from its link) or one of the demo chat's fine-tunes
   const { data: models } = useJson("/api/models");
   const subject = requestId() ?? (models?.some((m) => m.job && m.job === run.job) ? `demo:${run.job}` : null);
@@ -24,33 +25,55 @@ export default function ResultsPage({ run, runs }) {
         </p>
       </section>
 
-      {runs?.length > 1 && <RunPicker runs={runs} current={published?.job} />}
+      {runs?.length > 1 && <RunPicker runs={runs} current={published?.job} onPick={onPickRun} />}
 
       {published ? (
         <Run run={published} subject={subject} tally={tally} />
+      ) : run.loading ? (
+        <RunSkeleton />
       ) : (
-        !run.loading && (
-          <div className="tile panel notice" role="status">
-            <h2>No run published yet</h2>
-            <p>This page fills in when a request finishes. Request one on the agents page.</p>
-          </div>
-        )
+        <div className="tile panel notice" role="status">
+          <h2>No run published yet</h2>
+          <p>This page fills in when a request finishes. Request one on the agents page.</p>
+        </div>
       )}
     </>
   );
 }
 
-// Every published run, best first, each with its headline score. Links, so a run can be shared by its address.
-function RunPicker({ runs, current }) {
+// Every published run, best first, each with its headline score. Links, so a run can be shared by its address; on
+// the page they swap the run in place (and a run is fetched as soon as the pointer rests on it, so the swap is instant).
+function RunPicker({ runs, current, onPick }) {
   return (
     <nav className="runpicker" aria-label="Published fine-tunes">
-      {runs.map((r) => (
-        <a key={r.job} href={runHref(r.job)} aria-current={r.job === current ? "page" : undefined}>
-          <span>{r.title}</span>
-          <span className="muted small">{r.wins} / {r.prompts} vs {r.against}</span>
-        </a>
-      ))}
+      {runs.map((r) => {
+        const warm = () => prefetch(`/results/${r.job}.json`);
+        return (
+          <a key={r.job} href={runHref(r.job)} aria-current={r.job === current ? "page" : undefined}
+             onPointerEnter={warm} onFocus={warm}
+             onClick={onPick ? (e) => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); onPick(r.job); } } : undefined}>
+            <span>{r.title}</span>
+            <span className="muted small">{r.wins} / {r.prompts} vs {r.against}</span>
+          </a>
+        );
+      })}
     </nav>
+  );
+}
+
+// The run's shape while its file loads: the title, the headline numbers and the table, as grey blocks
+function RunSkeleton() {
+  return (
+    <section aria-busy="true" aria-label="Loading the run">
+      <Skeleton widths={["58%"]} className="skel-title" />
+      <Skeleton widths={["34%", "70%"]} />
+      <dl className="stats headline" aria-hidden="true">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="stat tile"><Skeleton widths={["80%", "45%", "95%"]} className="skel-stat" /></div>
+        ))}
+      </dl>
+      <div className="tile panel scores-wrap" aria-hidden="true"><Skeleton lines={6} /></div>
+    </section>
   );
 }
 
@@ -366,60 +389,187 @@ function ReadingScores({ run }) {
   );
 }
 
+// --- Every judged answer --------------------------------------------------------------------------------------------
+// One comparison at a time: the fine-tune's reply beside one rival's (the model told the goal, by default), with the
+// judge's reason for that pair. Each prompt is one row that opens; the pills on it say how the pair went against
+// every rival, so the list can be read without opening anything. Chips filter by what kind of prompt it was and how
+// the pair went, so the losses, or the off-task messages, can be read on their own.
+
+const SET_NAMES = { ...SETS, held: "held-back prompt" };
+const SET_ORDER = ["held", "off", "check", "hard", "fresh"];
+const OUTCOME = { tuned: ["won", "fine-tune preferred"], tie: ["even", "called even"], base: ["lost", "rival preferred"] };
+
+// The rivals a pair was judged against, each with its reply, verdict and the judge's reason
+function rivals(run) {
+  const t = run.judge?.teacher;
+  return [
+    run.judge?.vs_prompted && { id: "prompted", short: "Told the goal", phrase: "the model told the goal", name: `${run.base_title}, told the goal`,
+      text: (p) => p.prompted, verdict: (p) => p.vs_prompted, reason: (p) => p.prompted_reason,
+      readings: (p) => p.prompted_readings, second: true },
+    t && { id: "teacher", short: agentName(t.model), phrase: `${agentName(t.model)} itself`, name: `${agentName(t.model)} itself, told the goal`,
+      text: (p) => p.teacher, verdict: (p) => p.vs_teacher, reason: (p) => p.teacher_reason },
+    { id: "base", short: "Untrained", phrase: "the untrained model", name: `${run.base_title}, untrained`,
+      text: (p) => p.base, verdict: (p) => p.winner, reason: (p) => p.reason, readings: (p) => p.readings },
+  ].filter(Boolean);
+}
+
 function Answers({ run }) {
   const pairs = run.judge?.pairs ?? [];
+  const all = useMemo(() => rivals(run), [run]);
+  const [rivalId, setRival] = useState(all[0]?.id);
+  const [set, setSet] = useState("all");
+  const [went, setWent] = useState("all");
+  const [openAll, setOpenAll] = useState(false);
   if (!pairs.length) return null;
+  const rival = all.find((r) => r.id === rivalId) ?? all[0];
+  const kind = (p) => p.set ?? "held";
+  const sets = SET_ORDER.filter((s) => pairs.some((p) => kind(p) === s));
+  const count = (f) => pairs.filter(f).length;
+  const shown = pairs.map((p, i) => [p, i]).filter(([p]) => (set === "all" || kind(p) === set)
+    && (went === "all" || (went === "trouble" ? p.flagged || p.fails?.length : rival.verdict(p) === went)));
+  const t = { tuned: 0, tie: 0, base: 0 };
+  for (const p of pairs) if (rival.verdict(p) in t) t[rival.verdict(p)] += 1;
+  const trouble = count((p) => p.flagged || p.fails?.length);
+  const second = run.judge.second && judgeName(run.judge.second.model);
+
   return (
     <section id="answers" aria-labelledby="answers-title">
       <h2 id="answers-title">Every judged answer</h2>
-      <ul className="answers">
-        {pairs.map((p, i) => (
-          <li key={i} className="tile panel">
-            <p className="prompt">
-              {p.set && <span className="badge quiet">{SETS[p.set] ?? p.set}</span>}{" "}
-              <span className="sr-only">Prompt: </span>{p.prompt}
-            </p>
-            <div className="pair">
-              <figure className={p.tuned_won === false && p.winner !== "tie" ? "won" : ""}>
-                <figcaption>{run.base_title}, untrained</figcaption>
-                <blockquote>{p.base}</blockquote>
-              </figure>
-              {p.prompted != null && (
-                <figure className={p.vs_prompted === "base" ? "won" : ""}>
-                  <figcaption>{run.base_title}, told the goal</figcaption>
-                  <blockquote>{p.prompted}</blockquote>
-                </figure>
-              )}
-              <figure className={p.tuned_won || p.vs_prompted === "tuned" ? "won" : ""}>
-                <figcaption>Fine-tuned{p.flagged ? " · flagged as false or unhelpful" : ""}{
-                  p.fails?.length ? ` · breaks ${p.fails.join(", ")}` : ""}</figcaption>
-                <blockquote>{p.tuned}</blockquote>
-              </figure>
-              {p.teacher != null && (
-                <figure className={p.vs_teacher === "base" ? "won" : ""}>
-                  <figcaption>{agentName(run.judge.teacher?.model)}, told the goal</figcaption>
-                  <blockquote>{p.teacher}</blockquote>
-                </figure>
-              )}
-            </div>
-            {p.reason && (
-              <p className="reason">
-                <strong>Against the untrained model: {p.winner === "tie" ? "tie." : p.tuned_won ? "fine-tune preferred." : "untrained preferred."}</strong> {p.reason}
-              </p>
-            )}
-            {p.prompted_reason && (
-              <p className="reason">
-                <strong>Against the model told the goal: {p.vs_prompted === "tie" ? "tie." : p.vs_prompted === "tuned" ? "fine-tune preferred." : "told-the-goal preferred."}</strong> {p.prompted_reason}
-              </p>
-            )}
-            {p.teacher_reason && (
-              <p className="reason">
-                <strong>Against {agentName(run.judge.teacher?.model)} itself: {p.vs_teacher === "tie" ? "tie." : p.vs_teacher === "tuned" ? "fine-tune preferred." : "Muse Spark preferred."}</strong> {p.teacher_reason}
-              </p>
-            )}
-          </li>
+      <p className="muted answers-intro">
+        {pairs.length} prompts, none seen in training. Each row is one prompt: open it to read the fine-tune’s reply
+        beside a rival’s and why the judge picked as it did. The pills say how the pair went against each rival.
+      </p>
+
+      <div className="tile panel answers-tools">
+        <fieldset className="seg" aria-label="Compare the fine-tune with">
+          <legend className="small muted">Compare the fine-tune with</legend>
+          <div className="seg-options">
+            {all.map((r) => (
+              <label key={r.id} className={r.id === rival.id ? "on" : ""}>
+                <input type="radio" name="rival" value={r.id} checked={r.id === rival.id} onChange={() => setRival(r.id)} />
+                {r.short}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="answers-sum">
+          <Scorebar t={t} total={pairs.length} label={`The fine-tune against ${rival.name}, on all ${pairs.length} prompts`} />
+        </div>
+        <div className="chips" role="group" aria-label="Which prompts to show">
+          <Chip on={set === "all"} onClick={() => setSet("all")}>All kinds · {pairs.length}</Chip>
+          {sets.map((s) => (
+            <Chip key={s} on={set === s} onClick={() => setSet(s)}>{SET_NAMES[s]}s · {count((p) => kind(p) === s)}</Chip>
+          ))}
+        </div>
+        <div className="chips" role="group" aria-label="How the pair went">
+          <Chip on={went === "all"} onClick={() => setWent("all")}>Any outcome</Chip>
+          <Chip on={went === "tuned"} onClick={() => setWent("tuned")} tone="won">Won · {t.tuned}</Chip>
+          <Chip on={went === "tie"} onClick={() => setWent("tie")} tone="even">Even · {t.tie}</Chip>
+          <Chip on={went === "base"} onClick={() => setWent("base")} tone="lost">Lost · {t.base}</Chip>
+          {trouble > 0 && <Chip on={went === "trouble"} onClick={() => setWent("trouble")} tone="lost">Flagged or broke a rule · {trouble}</Chip>}
+          <button type="button" className="chip chip-end" onClick={() => setOpenAll((o) => !o)} aria-pressed={openAll}>
+            {openAll ? "Close all" : "Open all"}
+          </button>
+        </div>
+      </div>
+
+      <p className="small muted answers-count" aria-live="polite">
+        {shown.length === pairs.length ? `All ${pairs.length} prompts` : `${shown.length} of ${pairs.length} prompts`}
+        {set !== "all" && `, ${SET_NAMES[set]}s`}{went !== "all" && went !== "trouble" && `, ${OUTCOME[went][0]} against ${rival.phrase}`}
+        {went === "trouble" && ", flagged or breaking a rule"}.
+      </p>
+
+      <ol className="answers">
+        {shown.length === 0 && <li className="tile panel muted">Nothing here: no prompt went that way.</li>}
+        {shown.map(([p, i]) => (
+          <Answer key={i} p={p} n={i + 1} run={run} rival={rival} all={all} second={second} open={openAll || undefined} />
         ))}
-      </ul>
+      </ol>
     </section>
+  );
+}
+
+function Chip({ on, onClick, tone, children }) {
+  return (
+    <button type="button" className={`chip${tone ? ` chip-${tone}` : ""}`} aria-pressed={on} onClick={onClick}>{children}</button>
+  );
+}
+
+function Pill({ verdict, label }) {
+  if (!(verdict in OUTCOME)) return null;
+  const [word] = OUTCOME[verdict];
+  return <span className={`pill ${word}`}><span className="pill-who">{label}</span> {word}</span>;
+}
+
+// One prompt: the row says how it went; open, it shows the two replies and the judge's reasons
+function Answer({ p, n, run, rival, all, second, open }) {
+  const v = rival.verdict(p);
+  const kind = p.set ?? "held";
+  const others = all.filter((r) => r.id !== rival.id && r.text(p) != null);
+  const readings = rival.readings?.(p);
+  return (
+    <li>
+      <details className={`tile answer ${OUTCOME[v]?.[0] ?? ""}`} open={open}>
+        <summary className="answer-head">
+          <span className="answer-n muted small" aria-hidden="true">{n}</span>
+          <span className="answer-text">
+            <span className="answer-prompt"><span className="sr-only">Prompt: </span>{p.prompt}</span>
+            <span className="answer-pills">
+              <span className="pill quiet">{SET_NAMES[kind]}</span>
+              {all.map((r) => <Pill key={r.id} verdict={r.verdict(p)} label={r.short} />)}
+              {p.flagged && <span className="pill lost">flagged</span>}
+              {p.fails?.map((f) => <span key={f} className="pill lost">{/^decline/.test(f) ? "didn’t decline" : `breaks ${f}`}</span>)}
+            </span>
+          </span>
+          <span className="answer-chev" aria-hidden="true">›</span>
+        </summary>
+        <div className="answer-body">
+          <div className="duel">
+            <Reply title="Fine-tuned" text={p.tuned} won={v === "tuned"} />
+            <Reply title={rival.name} text={rival.text(p)} won={v === "base"} />
+          </div>
+          <p className="verdict-line">
+            <strong>{agentName(run.judge_model)}: {OUTCOME[v]?.[1] ?? "no verdict"}.</strong> {rival.reason(p)}
+            {readings && (
+              <span className="muted"> {readings[0] === readings[1] ? "Both orders agreed." : "The two orders disagreed, so it counts as even."}</span>
+            )}
+          </p>
+          {rival.second && second && p.second && (
+            <p className="verdict-line small">
+              <strong>{second}: {OUTCOME[p.second]?.[1] ?? p.second}.</strong> {p.second_reason}
+            </p>
+          )}
+          {others.length > 0 && (
+            <details className="also">
+              <summary className="small">Also compared with {others.map((r) => r.phrase).join(" and ")}</summary>
+              {others.map((r) => (
+                <div key={r.id} className="also-one">
+                  <Reply title={r.name} text={r.text(p)} won={r.verdict(p) === "base"} small />
+                  <p className="verdict-line small"><strong>{OUTCOME[r.verdict(p)]?.[1] ?? "no verdict"}.</strong> {r.reason(p)}</p>
+                </div>
+              ))}
+            </details>
+          )}
+        </div>
+      </details>
+    </li>
+  );
+}
+
+const LONG = 700;  // characters; a reply past this starts folded, so a rambling rival doesn't push the verdict away
+
+function Reply({ title, text, won, small }) {
+  const [whole, setWhole] = useState(false);
+  const long = (text ?? "").length > LONG;
+  return (
+    <figure className={`reply${won ? " won" : ""}${small ? " small" : ""}`}>
+      <figcaption>{title}{won && <span className="won-tag"> · preferred</span>}</figcaption>
+      <blockquote className={long && !whole ? "clamp" : ""}>{text ?? <span className="muted">(no reply)</span>}</blockquote>
+      {long && (
+        <button type="button" className="more" onClick={() => setWhole((w) => !w)} aria-expanded={whole}>
+          {whole ? "Show less" : `Show the whole reply (${num(text.length)} characters)`}
+        </button>
+      )}
+    </figure>
   );
 }

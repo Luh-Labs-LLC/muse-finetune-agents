@@ -185,6 +185,10 @@ code and prints the dispatch token). Commit the database id it writes into `wran
 changes to `web/schema.sql`, run `npx wrangler d1 execute muse-requests --remote --file schema.sql` (it only adds
 what's missing).
 
+Every POST from the page that creates something carries an `Idempotency-Key` header; the Worker answers a repeated
+key with the first answer, so a double tap or a retry after the network blinked never queues the same fine-tune
+twice (the `idempotency` table in `schema.sql`; without it, the Worker just creates every time).
+
 Then, on the GPU machine, with `DISPATCH_TOKEN` added to `.env.local`:
 
 ```powershell

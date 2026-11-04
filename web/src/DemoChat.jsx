@@ -3,11 +3,13 @@
 // goes to the queue (worker.js) with the conversation so far, the dispatcher on our GPU answers as that model, and
 // the reply joins the conversation. Each model's conversation is kept in this browser, so it's still there next
 // visit; nobody else sees it. The panel stays mounted while closed, so a reply on its way still arrives.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { Busy } from "./Chat.jsx";
 import Dictate from "./Dictate.jsx";
-import { useJson } from "./lib/data.js";
+import { toast } from "./Toast.jsx";
+import { idempotencyKey, useJson } from "./lib/data.js";
+import { useBackClose, useSwipeDismiss } from "./lib/sheet.js";
 
 const POLL_MS = 1500;
 const GIVE_UP_MS = 3 * 60_000;
@@ -65,7 +67,8 @@ export default function DemoChat() {
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(null);  // {id, model, started, status, online} while a reply is coming
   const [problem, setProblem] = useState(null);
-  const end = useRef(null), input = useRef(null), launcher = useRef(null);
+  const end = useRef(null), input = useRef(null), launcher = useRef(null), panel = useRef(null);
+  const once = useRef(idempotencyKey());  // one turn, however many times Send is hit before the site answers
   const isOpen = useRef(open);  // for the reply poller, which outlives the render that started it
   isOpen.current = open;
 
@@ -99,9 +102,20 @@ export default function DemoChat() {
     el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
   }, [draft]);
 
-  function close() {
+  const close = useCallback(() => {
     setOpen(false);
     launcher.current?.focus();
+  }, []);
+  // The back gesture closes the panel instead of leaving the site; on a phone, so does dragging its header down.
+  useBackClose(open, close, "chat");
+  useSwipeDismiss(panel, { axis: "y", direction: 1, onDismiss: close, enabled: open, handle: ".chatpanel-head" });
+
+  // Clearing a conversation asks nothing first: it clears, and Undo brings it back for a few seconds.
+  function clear() {
+    const was = all[model.id] ?? [];
+    setAll((a) => ({ ...a, [model.id]: [] }));
+    setProblem(null);
+    toast({ text: `Chat with ${model.title} cleared`, undo: () => setAll((a) => ({ ...a, [model.id]: was })) });
   }
 
   function pick(id) {
@@ -147,10 +161,12 @@ export default function DemoChat() {
     if (to === model) setDraft("");
     setProblem(null);
     try {
-      const r = await fetch("/api/talk", { method: "POST", headers: { "Content-Type": "application/json" },
+      const r = await fetch("/api/talk", { method: "POST",
+                                          headers: { "Content-Type": "application/json", "Idempotency-Key": once.current },
                                           body: JSON.stringify({ model: to.id, messages: conversation }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error ?? `the site answered ${r.status}`);
+      once.current = idempotencyKey();
       setPending({ id: d.id, model: to.id, started: Date.now(), status: "waiting" });
     } catch (err) {
       setProblem(err.message);
@@ -168,7 +184,7 @@ export default function DemoChat() {
   return (
     <div className={`chatdock${open ? " open" : ""}`}
          onKeyDown={(e) => { if (e.key === "Escape" && open && !e.defaultPrevented) close(); }}>
-      <div id="demochat" className="chatpanel" role="dialog" aria-label="Talk to the models" aria-hidden={!open}
+      <div id="demochat" ref={panel} className="chatpanel" role="dialog" aria-label="Talk to the models" aria-hidden={!open}
            inert={open ? undefined : ""}>
         <header className="chatpanel-head">
           {models ? <ModelMenu models={models} model={model} onPick={pick} pending={pending} />
@@ -176,11 +192,11 @@ export default function DemoChat() {
           <div className="chatpanel-tools">
             {messages.length > 0 && (
               <button type="button" className="chatpanel-icon" disabled={!!pending} title="New chat"
-                      aria-label="New chat" onClick={() => { setAll((a) => ({ ...a, [model.id]: [] })); setProblem(null); }}>
+                      aria-label="New chat" onClick={clear}>
                 <Icon name="compose" size={18} />
               </button>
             )}
-            <button type="button" className="chatpanel-icon" aria-label="Close the chat" title="Close" onClick={close}>
+            <button type="button" className="chatpanel-icon" aria-label="Close the chat" title="Close (Esc)" aria-keyshortcuts="Escape" onClick={close}>
               <Icon name="close" size={18} />
             </button>
           </div>
@@ -254,7 +270,10 @@ export default function DemoChat() {
                 <Icon name="up" size={18} />
               </button>
             </form>
-            <p className="chatpanel-note">Small models, AI-generated replies: they can be wrong. Don't share personal details; messages are kept for 7 days.</p>
+            <p className="chatpanel-note">
+              <span className="key-hints" aria-hidden="true"><kbd>↵</kbd> send · <kbd>⇧↵</kbd> new line · <kbd>esc</kbd> close</span>
+              Small models, AI-generated replies: they can be wrong. Don't share personal details; messages are kept for 7 days.
+            </p>
           </>
         )}
       </div>

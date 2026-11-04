@@ -1,12 +1,12 @@
 // The request form: a goal and the access code go to worker.js's queue, a dispatcher on one of our machines takes
 // it, and this follows its progress until the run is published. The request's id is kept in the address
 // (?request=...) so the page can be reloaded or shared, and the results site shows that run.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Chat from "./Chat.jsx";
 import Dictate from "./Dictate.jsx";
-import { Sparkline } from "./components.jsx";
+import { Skeleton, Sparkline } from "./components.jsx";
 import { Lora, Writing } from "./Phase.jsx";
-import { useJson } from "./lib/data.js";
+import { idempotencyKey, useJson } from "./lib/data.js";
 import { DOMAIN, SITES } from "./site.js";
 
 const STEPS = [
@@ -22,9 +22,8 @@ export function requestId() {
 }
 
 // The published run the address asks for (?run=<job>), if it's one of those listed, else the first (the best).
-export function pickedRun(runs) {
+export function pickedRun(runs, asked = new URLSearchParams(location.search).get("run")) {
   if (!runs?.length) return null;
-  const asked = new URLSearchParams(location.search).get("run");
   return (runs.find((r) => r.job === asked) ?? runs[0]).job;
 }
 
@@ -133,15 +132,20 @@ function Form({ onQueued }) {
   const [code, setCode] = useState("");
   const [rigor, setRigor] = useState("standard");
   const [state, setState] = useState({ sending: false, error: null });
+  // One key per attempt: a double tap or a retry after the network blinked can't queue the same request twice (and
+  // a fine-tune is 10 to 40 minutes of GPU). A new key only once this one has gone through.
+  const key = useRef(idempotencyKey());
 
   async function submit(e) {
     e.preventDefault();
     setState({ sending: true, error: null });
     try {
-      const r = await fetch("/api/requests", { method: "POST", headers: { "Content-Type": "application/json" },
+      const r = await fetch("/api/requests", { method: "POST",
+                                               headers: { "Content-Type": "application/json", "Idempotency-Key": key.current },
                                                body: JSON.stringify({ goal, code, rigor }) });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error ?? `the site answered ${r.status}`);
+      key.current = idempotencyKey();
       remember(data.id, goal.trim());
       onQueued(data.id);
     } catch (err) {
@@ -263,7 +267,7 @@ function tally(verdicts, key = "winner") {
   return t;
 }
 
-function Scorebar({ t, total, label }) {
+export function Scorebar({ t, total, label }) {
   const left = total - t.tuned - t.tie - t.base;
   return (
     <>
@@ -326,7 +330,12 @@ function Status({ id, onNew }) {
     if (data?.goal && !mine().some((r) => r.id === id)) remember(id, data.goal);  // opened from a shared link
   }, [id, data?.goal]);
   if (!data) {
-    return <div className="tile panel"><p className="muted">{error ? `Couldn't load the request (${error}).` : "Loading…"}</p></div>;
+    return (
+      <div className="tile panel request-status">
+        {error ? <p className="muted">Couldn't load the request ({error}).</p>
+               : <Skeleton widths={["70%", "30%", "48%", "40%", "36%", "44%"]} />}
+      </div>
+    );
   }
   const at = STEPS.findIndex(([s]) => s === data.status);
   return (

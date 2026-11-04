@@ -12,6 +12,17 @@ export function Stat({ label, value, note }) {
   );
 }
 
+// The shape of what's coming, in place of a spinner: grey blocks where the title, numbers and rows will be, so the
+// page doesn't jump when they arrive. Screen readers hear one word; the shimmer stops under reduced motion.
+export function Skeleton({ lines = 3, className = "", widths }) {
+  const w = widths ?? Array.from({ length: lines }, (_, i) => (i === lines - 1 ? "55%" : i % 2 ? "82%" : "95%"));
+  return (
+    <div className={`skel ${className}`} role="status" aria-label="Loading" aria-busy="true">
+      {w.map((width, i) => <span key={i} className="skel-line" style={{ width }} />)}
+    </div>
+  );
+}
+
 // A small line chart. Screen readers get the label, which states the first and last values; the numbers themselves
 // are always also in a table or text nearby.
 export function Sparkline({ points, label, lowerIsBetter = false, height = 56 }) {

@@ -64,3 +64,12 @@ CREATE TABLE IF NOT EXISTS hits (
   at  INTEGER NOT NULL        -- ms since 1970
 );
 CREATE INDEX IF NOT EXISTS hits_by_key ON hits (key, at);
+
+-- Idempotency keys: the page sends one (Idempotency-Key header) with every POST that creates something, and a
+-- repeated key gets the first answer back instead of a second request, chat message or demo turn. A double tap
+-- never queues two fine-tunes. Rows older than a day are cleared with the hits.
+CREATE TABLE IF NOT EXISTS idempotency (
+  key     TEXT PRIMARY KEY,   -- the page's key, prefixed with what it created (request:, chat:, talk:)
+  id      TEXT NOT NULL,      -- the row it created
+  created INTEGER NOT NULL
+);

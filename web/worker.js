@@ -28,6 +28,9 @@
 // Voice input (Muse Voice Transcribe): the page records a clip and sends 16 kHz WAV bytes.
 //   POST /api/transcribe              audio/wav body   {transcript, ms}
 //
+// Every POST that creates something (a request, a chat message, a demo turn) can carry an Idempotency-Key header;
+// a repeated key gets the first answer back instead of creating a second one (the idempotency table).
+//
 // Secrets (`npx wrangler secret put NAME`): ACCESS_CODE, which the form asks for; DISPATCH_TOKEN, which the
 // dispatchers send as `Authorization: Bearer ...`; and MODEL_API_KEY, a Meta Model API key for voice input (without
 // it the microphone button reports that voice isn't set up). None of them ever reaches the page.
@@ -113,9 +116,11 @@ export default {
 
 async function route(request, env, [what, id, more]) {
   const method = request.method;
-  if (what === "requests" && !id && method === "POST") return submit(env, await body(request), request);
+  if (what === "requests" && !id && method === "POST") {
+    return once(env, request, "request", async () => submit(env, await body(request), request));
+  }
   if (what === "requests" && id && more === "chat" && method === "POST") {
-    return ask(env, id, await body(request), request);
+    return once(env, request, "chat", async () => ask(env, id, await body(request), request));
   }
   if (what === "requests" && id && !more && method === "GET") return show(env, id);
   if (what === "chats" && id && !more && method === "GET") return chat(env, id);
@@ -126,7 +131,7 @@ async function route(request, env, [what, id, more]) {
     // `job` is the fine-tune's name, already public in its results file: the results page finds its model by it
     return json(DEMO_MODELS.map((m) => ({ ...m, base: m.job === null })));
   }
-  if (what === "talk" && !id && method === "POST") return talk(env, await body(request), request);
+  if (what === "talk" && !id && method === "POST") return once(env, request, "talk", async () => talk(env, await body(request), request));
   if (what === "talk" && id && method === "GET") return heard(env, id);
   if (what === "transcribe" && !id && method === "POST") return transcribe(env, request);
   if (what === "dispatch") {
@@ -358,6 +363,30 @@ async function replyTalk(env, id, { reply, error }) {
   return json({ ok: true });
 }
 
+// Do `create` once per Idempotency-Key: the same key again (a double tap, a retry after the network blinked) gets
+// the first answer back. The row is created first and the key claimed after, so an id handed out always exists; if
+// two identical POSTs race, the one that lost the claim deletes what it just made (unless a dispatcher already took
+// it, which is harmless: twice the work, once in a blue moon) and answers with the winner's id. A database without
+// the idempotency table just creates every time.
+async function once(env, request, kind, create) {
+  const key = (request.headers.get("Idempotency-Key") ?? "").slice(0, 100);
+  if (!key) return create();
+  const full = `${kind}:${key}`;
+  const seen = await env.DB.prepare("SELECT id FROM idempotency WHERE key = ?").bind(full).first().catch(() => null);
+  if (seen) return json({ id: seen.id, status: kind === "request" ? "queued" : "waiting", repeated: true });
+  const response = await create();
+  const made = await response.clone().json().catch(() => null);
+  if (!made?.id) return response;
+  await env.DB.prepare("INSERT OR IGNORE INTO idempotency (key, id, created) VALUES (?, ?, ?)").bind(full, made.id, Date.now())
+    .run().catch(() => null);
+  const won = await env.DB.prepare("SELECT id FROM idempotency WHERE key = ?").bind(full).first().catch(() => null);
+  if (!won || won.id === made.id) return response;
+  const table = { request: "requests", chat: "chats", talk: "talks" }[kind];
+  const idle = kind === "request" ? "queued" : "waiting";
+  await env.DB.prepare(`DELETE FROM ${table} WHERE id = ? AND status = ?`).bind(made.id, idle).run().catch(() => {});
+  return json({ ...made, id: won.id, repeated: true }, 201);
+}
+
 // At most LIMITS[kind].n of `kind` per visitor per window, counted in the hits table. A database made before that
 // table just isn't limited. Now and then it also clears out old hits and chat messages past KEEP_MS.
 async function limit(env, request, kind) {
@@ -375,6 +404,7 @@ async function limit(env, request, kind) {
       env.DB.prepare("DELETE FROM hits WHERE at < ?").bind(now - 86_400_000),
       env.DB.prepare("DELETE FROM chats WHERE created < ?").bind(now - KEEP_MS),
       env.DB.prepare("DELETE FROM talks WHERE created < ?").bind(now - KEEP_MS),
+      env.DB.prepare("DELETE FROM idempotency WHERE created < ?").bind(now - 86_400_000),
     ]).catch(() => {});
   }
 }

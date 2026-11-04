@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Muse Spark Fine-Tune Agents</title>
 <meta name="description" content="Plain English in, a judged fine-tune out: Muse Spark agents design fine-tuning jobs and judge the results.">
 <meta name="color-scheme" content="light dark">
@@ -13,6 +13,24 @@
 <script>
   // Before anything paints: apply a saved light/dark choice, so the page never flashes the wrong theme.
   try { var t = localStorage.getItem("theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+  // Before the app's code has even arrived: start fetching the results page's data (the list of runs, then the run the
+  // address asks for, or the best one), so by the time React renders, the numbers are already on their way or here.
+  // src/lib/data.js picks these up (window.__early) instead of fetching again.
+  (function () {
+    try {
+      var q = new URLSearchParams(location.search), site = q.get("site") || (location.hostname.indexOf("results.") === 0 ? "results" : "meta");
+      if (q.get("request")) return;
+      var early = window.__early = {};
+      var runs = early["/results/runs.json"] = fetch("/results/runs.json", { cache: "no-cache" });
+      if (site !== "results") return;
+      runs.then(function (r) { return r.clone().json(); }).then(function (list) {
+        var asked = q.get("run"), pick = null;
+        for (var i = 0; i < list.length; i++) if (list[i].job === asked) pick = list[i];
+        pick = pick || list[0];
+        if (pick) early["/results/" + pick.job + ".json"] = fetch("/results/" + pick.job + ".json", { cache: "no-cache" });
+      }).catch(function () {});
+    } catch (e) {}
+  })();
 </script>
 </head>
 <body>

@@ -5,8 +5,8 @@
 // without the earlier ones as context, the same way the judge tested the model.
 //
 // `subject` is a request's id, or demo:<job> for a demo model's fine-tune.
-import { useEffect, useState } from "react";
-import { useJson } from "./lib/data.js";
+import { useEffect, useRef, useState } from "react";
+import { idempotencyKey, useJson } from "./lib/data.js";
 
 const POLL_MS = 1500;
 const GIVE_UP_MS = 3 * 60_000;
@@ -29,6 +29,7 @@ export default function Chat({ subject }) {
   const [sending, setSending] = useState(false);
   const [tally, setTally] = useState(null);
   const { data: counted } = useJson(`/api/votes/${encodeURIComponent(subject)}`);
+  const once = useRef(idempotencyKey());  // one message, however many times Send is hit before the site answers
 
   async function send(e) {
     e.preventDefault();
@@ -39,9 +40,10 @@ export default function Chat({ subject }) {
     const flip = Math.random() < 0.5;  // which side the fine-tune is on, chosen here so the page can't give it away
     try {
       const r = await fetch(`/api/requests/${encodeURIComponent(subject)}/chat`, { method: "POST",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text }) });
+        headers: { "Content-Type": "application/json", "Idempotency-Key": once.current }, body: JSON.stringify({ message: text }) });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error ?? `the site answered ${r.status}`);
+      once.current = idempotencyKey();
       setTurns((t) => [...t, { key, id: data.id, message: text, flip }]);
       setMessage("");
     } catch (err) {
@@ -73,6 +75,7 @@ export default function Chat({ subject }) {
           {sending ? "Sending…" : "Send"}
         </button>
       </form>
+      <p className="small muted key-hints" aria-hidden="true"><kbd>↵</kbd> send</p>
     </section>
   );
 }

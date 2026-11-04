@@ -1,13 +1,14 @@
-// The glass sidebar: both sites' sections in one place, a search over them (⌘K or Ctrl K), night mode, and the team.
-// On a desktop it folds down to a rail of icons; on a phone it's a drawer behind a menu button.
-import { useEffect, useRef, useState } from "react";
+// The glass sidebar: both sites' sections in one place, the command menu's button (⌘K or Ctrl K), night mode, and the
+// team. On a desktop it folds down to a rail of icons; on a phone it's a drawer behind a menu button, which the back
+// gesture closes and a swipe to the left dismisses.
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { ALL_ITEMS, NAV } from "./nav.js";
 import { siteHref } from "./site.js";
 import { useTheme } from "./lib/theme.js";
+import { useBackClose, useSwipeDismiss } from "./lib/sheet.js";
+import { MOD, onToggleTheme, openCommandMenu } from "./CommandMenu.jsx";
 import { TEAM } from "./team.js";
-
-const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 function useStored(key, initial) {
   const [value, setValue] = useState(() => {
@@ -46,46 +47,43 @@ export default function Sidebar({ site, run }) {
   const [collapsed, setCollapsed] = useStored("sidebar-collapsed", false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [expanded, setExpanded] = useState({ "fine-tune": true });
-  const [query, setQuery] = useState("");
-  const searchRef = useRef(null);
   const menuRef = useRef(null);
+  const asideRef = useRef(null);
   const { theme, dark, setTheme } = useTheme();
   const active = useActiveSection(ALL_ITEMS.filter((i) => i.site === site).map((i) => i.id));
   const folded = collapsed && !drawerOpen; // the drawer always opens full width
 
-  // ⌘K / Ctrl K opens the search from anywhere; Escape closes the drawer.
+  // Escape closes the drawer; so does the back gesture, and a swipe to the left.
+  const close = useCallback(() => setDrawerOpen(false), []);
   useEffect(() => {
     function onKey(e) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setCollapsed(false);
-        if (matchMedia("(max-width: 860px)").matches) setDrawerOpen(true);
-        requestAnimationFrame(() => searchRef.current?.focus());
-      } else if (e.key === "Escape" && drawerOpen) {
+      if (e.key === "Escape" && drawerOpen) {
         setDrawerOpen(false);
         menuRef.current?.focus();
       }
     }
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
-  }, [drawerOpen, setCollapsed]);
+  }, [drawerOpen]);
+  useBackClose(drawerOpen, close, "drawer");
+  useSwipeDismiss(asideRef, { axis: "x", direction: -1, onDismiss: close, enabled: drawerOpen });
+
+  // The command menu's "switch night mode"
+  useEffect(() => onToggleTheme(() => setTheme(dark ? "light" : "dark")), [dark, setTheme]);
 
   // While the drawer is open, the page behind it can't be clicked or tabbed into.
   useEffect(() => {
     const content = document.getElementById("content");
     if (content) content.inert = drawerOpen;
-    if (drawerOpen) requestAnimationFrame(() => searchRef.current?.focus());
+    if (drawerOpen) requestAnimationFrame(() => asideRef.current?.querySelector(".nav-link")?.focus());
   }, [drawerOpen]);
 
-  const close = () => setDrawerOpen(false);
   const badges = {
     run: run?.judge
       ? <span className="badge">{(run.judge.vs_prompted ?? run.judge).tuned_wins}/{run.judge.prompts}</span>
       : <span className="badge quiet">soon</span>,
   };
-  const matches = query.trim()
-    ? ALL_ITEMS.filter((i) => i.label.toLowerCase().includes(query.trim().toLowerCase()))
-    : null;
+  const commands = () => { close(); openCommandMenu(); };
 
   function link(item, extra = {}) {
     const external = Boolean(item.href);
@@ -113,7 +111,7 @@ export default function Sidebar({ site, run }) {
       </div>
       {drawerOpen && <div className="scrim" onClick={close} aria-hidden="true" />}
 
-      <aside id="sidebar" className={`sidebar${folded ? " folded" : ""}${drawerOpen ? " open" : ""}`} aria-label="Site">
+      <aside id="sidebar" ref={asideRef} className={`sidebar${folded ? " folded" : ""}${drawerOpen ? " open" : ""}`} aria-label="Site">
         <div className="sidebar-head">
           <Brand withSub={!folded} />
           <button className="fold-button" onClick={() => setCollapsed(!collapsed)} aria-expanded={!collapsed}
@@ -126,31 +124,21 @@ export default function Sidebar({ site, run }) {
         </div>
 
         {folded ? (
-          <button className="nav-link search-rail" data-tip="Search" aria-label="Search pages"
-                  onClick={() => { setCollapsed(false); requestAnimationFrame(() => searchRef.current?.focus()); }}>
+          <button className="nav-link search-rail" data-tip={`Search (${MOD} K)`} aria-label="Open the command menu"
+                  aria-keyshortcuts="Meta+K Control+K" onClick={commands}>
             <Icon name="search" />
           </button>
         ) : (
-          <form className="search" role="search" onSubmit={(e) => {
-            e.preventDefault();
-            const first = matches?.[0];
-            if (first) { location.href = first.href ?? siteHref(first.site, first.id); setQuery(""); close(); }
-          }}>
+          <button type="button" className="search" aria-label="Open the command menu: search sections, runs and actions"
+                  aria-keyshortcuts="Meta+K Control+K" onClick={commands}>
             <Icon name="search" size={18} />
-            <label className="sr-only" htmlFor="search-input">Search pages</label>
-            <input id="search-input" ref={searchRef} type="search" placeholder="Search pages" value={query}
-                   onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
-            <kbd aria-hidden="true">{IS_MAC ? "⌘K" : "Ctrl K"}</kbd>
-          </form>
+            <span className="search-text">Search or jump to…</span>
+            <kbd aria-hidden="true">{MOD} K</kbd>
+          </button>
         )}
 
         <nav id="sidebar-nav" className="sidebar-nav" aria-label="Sections">
-          {matches ? (
-            <>
-              <p className="group-title" aria-live="polite">{matches.length ? `${matches.length} found` : "Nothing found"}</p>
-              <ul>{matches.map((i) => <li key={(i.site ?? "") + (i.id ?? i.href)}>{link(i)}</li>)}</ul>
-            </>
-          ) : NAV.map((g) => (
+          {NAV.map((g) => (
             <div key={g.group} className="group">
               <p className="group-title">{folded ? <span className="rule" aria-hidden="true" /> : g.group}</p>
               <ul>
