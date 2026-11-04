@@ -119,7 +119,7 @@ function Queue() {
   return (
     <p className={`queue small ${data.online ? "" : "muted"}`} role="status">
       <span className={`dot ${data.online ? "ok" : "bad"}`} aria-hidden="true" />
-      {!data.online ? "No GPU is online right now. A request waits until the machine is back."
+      {!data.online ? "The GPU is offline right now. A request is saved and starts as soon as the machine is back."
         : !busy ? "A GPU is online and free: a request starts right away."
         : `A GPU is online: ${data.running} running${data.queued ? `, ${data.queued} waiting` : ""}. A new request starts after ${
             busy === 1 ? "it" : "them"} (most take 10 to 40 minutes).`}
@@ -156,14 +156,14 @@ function Form({ onQueued }) {
   return (
     <form className="tile panel request-form" onSubmit={submit}>
       <p>
-        Describe the model you want in a sentence. Muse Spark designs the job, our machines train it, and Muse Spark
-        judges the result. Requests need an access code while the demo runs on our own GPUs.
+        One sentence is enough. The Job Architect writes the training data and settings, our GPU trains it, and the
+        Quality Judge grades the result blind. You get a link to watch it happen and the finished run.
       </p>
       <div className="label-row">
         <label htmlFor="goal">What should the model do?</label>
         <Dictate label="Say it instead" onText={(t) => setGoal(t.slice(0, 500))} />
       </div>
-      <textarea id="goal" rows={3} minLength={10} maxLength={500} required value={goal}
+      <textarea id="goal" rows={4} minLength={10} maxLength={500} required value={goal}
                 placeholder="Answer customer-support questions in two friendly sentences"
                 onChange={(e) => setGoal(e.target.value)} />
       <div className="examples" role="group" aria-label="Example goals">
@@ -182,7 +182,7 @@ function Form({ onQueued }) {
           ))}
         </div>
       </fieldset>
-      <label htmlFor="code">Access code</label>
+      <label htmlFor="code">Access code <span className="muted small" style={{ fontWeight: 400 }}>· needed while the demo runs on our own GPU; ask Caleb for one</span></label>
       <input id="code" type="password" autoComplete="off" required value={code} onChange={(e) => setCode(e.target.value)} />
       {state.error && <p className="form-error" role="alert">{state.error}</p>}
       <Queue />

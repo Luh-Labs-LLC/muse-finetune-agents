@@ -1,4 +1,5 @@
-// agents.luhlabs.com: what the two Muse Spark agents do, the runs they've published, the request form, and the story.
+// agents.luhlabs.com: the request form first (it's what the site is for), then the models to try, how it works, and
+// the story.
 import { agentName, useJson } from "../lib/data.js";
 import { siteHref } from "../site.js";
 import About from "../About.jsx";
@@ -35,7 +36,6 @@ export function Topbar({ eyebrow, title, sub, children }) {
         <button type="button" className="round-button" onClick={openCommandMenu} aria-label="Search sections, runs and actions"
                 aria-keyshortcuts="Meta+K Control+K"><Icon name="search" size={18} /></button>
         {children}
-        <button type="button" className="button primary" onClick={openChat}><Icon name="chat" size={16} /> Talk to the models</button>
       </div>
     </header>
   );
@@ -44,57 +44,56 @@ export function Topbar({ eyebrow, title, sub, children }) {
 export default function MetaPage({ run }) {
   const { data: runs } = useJson("/results/runs.json");
   const { data: status } = useJson("/api/status", 30_000);
+  const queue = status ? (status.running ?? 0) + (status.queued ?? 0) : null;
   return (
     <>
-      <section id="overview" aria-labelledby="hero-title">
+      <section id="overview" className="lead" aria-labelledby="hero-title">
         <Topbar eyebrow="Muse Spark fine-tune agents"
-                title={<span id="hero-title">Plain English in. A judged fine-tune out.</span>}
-                sub="Two Muse Spark agents sit on either side of a fine-tune. One turns a goal into a training job, the other checks whether the model actually got better, and says so when it didn’t.">
-          <a className="button" href="#request">Request a fine-tune</a>
+                title={<span id="hero-title">Describe a model. Get a judged fine-tune.</span>}
+                sub="Write one sentence. Two Muse Spark agents design the training job, a GPU trains it, and a blind judge says whether it got better than just asking.">
+          <button type="button" className="button" onClick={openChat}><Icon name="chat" size={16} /> Talk to the models</button>
+          <a className="button" href={siteHref("results")}><Icon name="chart" size={16} /> See the results</a>
         </Topbar>
-        <ol className="start" aria-label="Start here">
-          <li className="tile">
-            <button type="button" onClick={openChat}>
-              <span className="start-icon"><Icon name="chat" size={20} /></span>
-              <h3>Talk to a fine-tune</h3>
-              <p>Chat with the models the agents made, and with the untrained one, to feel the difference yourself.</p>
-              <span className="start-go">Open the chat</span>
-            </button>
-          </li>
-          <li className="tile">
-            <a href={siteHref("results")}>
-              <span className="start-icon green"><Icon name="chart" size={20} /></span>
-              <h3>See how one was judged</h3>
-              <p>Every score, every reply and the judge’s reason, for a run that reached its bar and one that didn’t.</p>
-              <span className="start-go">Open the results</span>
-            </a>
-          </li>
-          <li className="tile">
-            <a href="#request">
-              <span className="start-icon amber"><Icon name="spark" size={20} /></span>
-              <h3>Train your own</h3>
-              <p>Describe a model in one sentence. The agents design, train, judge and repair it on our GPU.</p>
-              <span className="start-go">Request a fine-tune</span>
-            </a>
-          </li>
-        </ol>
+      </section>
+
+      <Request status={status} />
+
+      <section id="start" aria-labelledby="start-title">
+        <h2 id="start-title">Or try one first</h2>
+        <p className="muted">Three fine-tunes the agents already made, each trained from a sentence and judged blind against the same model told the goal.</p>
         <div className="dash">
           <div className="tile panel">
-            <h3 className="panel-title">Fine-tunes the agents have made</h3>
-            <p className="small muted">Each one trained from a sentence, judged blind against the same model told the goal.</p>
-            {runs?.length > 0 && <Board runs={runs} />}
+            <ol className="board" aria-label="Published fine-tunes">
+              {(runs ?? []).map((r) => (
+                <li key={r.job}>
+                  <a href={runLink(r.job)} data-job={r.job}>
+                    <span className="board-title">{r.title}</span>
+                    <span className="board-score">{r.wins}/{r.prompts}</span>
+                    <span className="board-sub">preferred over the model {r.against}, on {r.prompts} unseen prompts</span>
+                    <span className="board-go" aria-hidden="true"><Icon name="chevron" size={18} /></span>
+                  </a>
+                </li>
+              ))}
+            </ol>
           </div>
-          <div className="tile panel live-tile">
-            <h3 className="panel-title"><span className={`dot ${status?.online ? "ok" : status?.online === false ? "bad" : ""}`} aria-hidden="true" /> The GPU</h3>
-            <p className="big-number">{status ? (status.running ?? 0) + (status.queued ?? 0) : "–"}<span> in the queue</span></p>
-            <p className="small muted">
-              {!status ? "Checking whether a machine is online…"
-                : status.online === false ? "Offline right now: the machine that trains isn't checking in. A request is saved and starts when it's back."
-                : !(status.running + status.queued) ? "A GPU is online and free: a request starts right away."
-                : `${status.running} running, ${status.queued} waiting. Most take 10 to 40 minutes.`}
-            </p>
-            <p className="small muted">One RTX 4060 trains the requests and answers the chats, in turn.</p>
-          </div>
+          <ol className="start" aria-label="Try one">
+            <li className="tile">
+              <button type="button" onClick={openChat}>
+                <span className="start-icon"><Icon name="chat" size={20} /></span>
+                <h3>Talk to a fine-tune</h3>
+                <p>Chat with the models the agents made, and with the untrained one, to feel the difference yourself.</p>
+                <span className="start-go">Open the chat</span>
+              </button>
+            </li>
+            <li className="tile">
+              <a href={siteHref("results")}>
+                <span className="start-icon green"><Icon name="chart" size={20} /></span>
+                <h3>See how one was judged</h3>
+                <p>Every score, every reply and the judge’s reason, for a run that reached its bar and one that didn’t.</p>
+                <span className="start-go">Open the results</span>
+              </a>
+            </li>
+          </ol>
         </div>
       </section>
 
@@ -112,8 +111,6 @@ export default function MetaPage({ run }) {
           ))}
         </ol>
       </section>
-
-      <Request />
 
       <JudgeSummary run={run.data} />
 
@@ -141,19 +138,16 @@ function runLink(job) {
   return base.includes("?") ? `${base}&run=${job}` : `${base}?run=${job}`;
 }
 
-// The runs the agents have published, each with its headline score: the honest comparison, against the same base
-// model told the goal. On the results page they're the tabs that swap the run in place.
-export function Board({ runs, current, onPick, tabs = false }) {
+// The runs as tabs on the results page: each with its headline score, the current one underlined.
+export function Board({ runs, current, onPick }) {
   return (
-    <ol className={tabs ? "tabs" : "board"} aria-label="Published fine-tunes">
+    <ol className="tabs" aria-label="Published fine-tunes">
       {runs.map((r) => (
         <li key={r.job}>
           <a href={runLink(r.job)} data-job={r.job} aria-current={r.job === current ? "page" : undefined}
              onClick={onPick ? (e) => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); onPick(r.job); } } : undefined}>
             <span className="board-title">{r.title}</span>
             <span className="board-score">{r.wins}/{r.prompts}</span>
-            {!tabs && <span className="board-sub">preferred over the model {r.against}, on {r.prompts} unseen prompts · {r.date}</span>}
-            {!tabs && <span className="board-go" aria-hidden="true"><Icon name="chevron" size={18} /></span>}
           </a>
         </li>
       ))}
