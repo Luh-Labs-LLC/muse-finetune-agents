@@ -93,6 +93,9 @@ A fine-tune that beats an untrained model on its own goal proves little: that mo
   - **the judge's own prompts**: two casual, two everyday and two demanding, written fresh after each round's
     training and never shown to the Job Architect.
 - Each pair is judged **twice, in both orders**, and only counts when both readings agree.
+- The judge can say **neither**: when no reply does what the goal asks at all, the less bad one doesn't win, and the
+  pair counts against the fine-tune. A forced choice between two misses used to let a run score without ever doing
+  the goal (the Twain run's judge wrote "neither reply uses Twain's styling, but A…" and picked A).
 - The judge won't let style beat a correct answer, and it **flags false or unhelpful replies**; the count is shown.
 - Every score comes with its **95% range**: 19 of 20 means about 76–99%, not 95%.
 - **Code scores what code can.** The Job Architect picks each goal's rules from a fixed library
