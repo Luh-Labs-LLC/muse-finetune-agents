@@ -200,7 +200,7 @@ const whole = (x) => `${Math.round(x * 100)}%`;  // pct's decimal doesn't fit tw
 function Teacher({ teacher: t }) {
   return (
     <Stat label={`Even or better against ${agentName(t.model)} itself`} value={`${t.tuned_wins + t.ties} / ${t.prompts}`}
-          note={`${t.tuned_wins} preferred, ${t.ties} even, ${t.teacher_wins} lost to the frontier model that wrote its
+          note={`${t.tuned_wins} preferred, ${t.ties} even, ${t.neither ? `${t.neither} where neither did the goal, ` : ""}${t.teacher_wins} lost to the frontier model that wrote its
             training chats, told the goal${t.hard ? ` · hard prompts ${t.hard.tuned_wins + t.hard.ties} / ${t.hard.prompts}` : ""}`} />
   );
 }
@@ -379,8 +379,13 @@ function ReadingScores({ run }) {
             frontier model's skill at this one task fits in a 0.6B model with no goal in the prompt. A pair the
             fine-tune won or drew is one where the small model was as good as the big one, in the judge's reading.</li>
         )}
-        <li>When no reply does what the goal asks at all, the judge says “neither” and the pair counts against the
-          fine-tune: a less bad reply is not a win.</li>
+        {"neither" in run.judge ? (
+          <li>When no reply does what the goal asks at all, the judge says “neither” and the pair counts against the
+            fine-tune: a less bad reply is not a win.</li>
+        ) : (
+          <li>This run was judged before the judge could say “neither”: each pair was a forced choice, so a reply that
+            missed the goal less badly could still count as a win or a tie.</li>
+        )}
         <li>Each reply pair is judged twice, in both orders, and only counts when both readings agree. The range is
           where the true rate likely sits, given only {run.judge.prompts} test prompts; “1 in N by luck” is the chance a
           coin would win at least as many of the decided pairs.</li>

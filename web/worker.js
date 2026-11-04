@@ -12,8 +12,9 @@
 // goal, shown as A and B in random order, and the visitor says which is better before learning which was which.
 //   POST /api/requests/<id>/chat       {message}      anyone with a done request's id: ask both models something
 //   POST /api/requests/demo:<job>/chat {message}      the same for a demo model's fine-tune (DEMO_MODELS)
-//   GET  /api/chats/<chat>                            that message's status and, once answered, both replies
-//   POST /api/chats/<chat>/vote        {pick}         which reply was better: "tuned", "rival" or "tie", once per message
+//   GET  /api/chats/<chat>                            that message's status and, once answered, both replies as a and b
+//   POST /api/chats/<chat>/vote        {pick}         which reply was better: "A", "B" or "tie", once per message;
+//                                                     the answer says which model A was
 //   GET  /api/votes/<request or demo:job>             people's votes on that model so far
 //   POST /api/dispatch/chat            {machine}      a dispatcher: take the oldest unanswered message
 //   POST /api/dispatch/chat/<chat>     {base, tuned}  a dispatcher: the two replies (or {error})
@@ -57,14 +58,17 @@ const LIMITS = {
   request: { n: 6, ms: 3600_000, said: "requests an hour" },
   chat: { n: 30, ms: 600_000, said: "messages in ten minutes" },
   vote: { n: 60, ms: 600_000, said: "votes in ten minutes" },
+  // voice input is billed to MODEL_API_KEY per clip, so it has a cap for each visitor and one for the whole site
+  transcribe: { n: 20, ms: 600_000, said: "voice clips in ten minutes" },
+  transcribe_all: { n: 300, ms: 3600_000, said: "voice clips an hour across the site" },
 };
 const PICKS = ["tuned", "rival", "tie"];
 
 // The models the demo chat offers. `job` is the fine-tune's adapter on the dispatcher's machine (agent-jobs/adapters);
 // null is the base model as it comes. Only these can be chatted with, so a visitor can't make the GPU load anything else.
 // `score` is the judge's verdict against the same base model told the goal (two readings, 20 unseen prompts), the
-// comparison that shows whether fine-tuning beat simply asking. A fine-tune that didn't beat it (the bike shop
-// helper: 4 of 10) isn't offered.
+// comparison that shows whether fine-tuning beat simply asking. A fine-tune that lost to it more often than it won
+// (the bike shop helper: 4 of 10) isn't offered; one that won more than it lost but short of its bar (Twain) is.
 const DEMO_MODELS = [
   { id: "qwen3-0.6b", title: "Qwen3 0.6B, untrained", job: null,
     about: "The base model every fine-tune here starts from, as it comes." },
@@ -87,6 +91,9 @@ const MAX_AUDIO = 4 * 1024 * 1024;
 async function transcribe(env, request) {
   if (!env.MODEL_API_KEY) throw fail(503, "voice input isn't set up on this site");
   if (!/^audio\/wav\b/.test(request.headers.get("content-type") ?? "")) throw fail(415, "send audio/wav");
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_AUDIO) throw fail(413, "that clip is too long");
+  await limit(env, request, "transcribe");
+  await limit(env, request, "transcribe_all", "everyone");
   const audio = await request.arrayBuffer();
   if (audio.byteLength < 100) throw fail(400, "no audio");
   if (audio.byteLength > MAX_AUDIO) throw fail(413, "that clip is too long");
@@ -98,7 +105,7 @@ async function transcribe(env, request) {
                                           headers: { Authorization: `Bearer ${env.MODEL_API_KEY}`, Accept: "application/json" } });
   if (!r.ok) throw fail(r.status === 429 ? 429 : 502, r.status === 429 ? "voice input is busy; try again in a moment"
                                                                      : "the transcription service didn't answer");
-  const data = await r.json();
+  const data = await r.json().catch(() => { throw fail(502, "the transcription service didn't answer"); });
   return json({ transcript: String(data.transcript ?? "").trim(), ms: data.audioDurationMs ?? null });
 }
 
@@ -255,8 +262,16 @@ async function chat(env, chatId) {
     error = "no GPU was free to answer it";
   }
   const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
-  return json({ id: row.id, message: row.message, status, error, base: row.base, tuned: row.tuned,
+  // The page gets the two replies as A and B only, in an order it can't work out, so the vote is blind for real
+  const [a, b] = (await tunedIsA(env, row.id)) ? [row.tuned, row.base] : [row.base, row.tuned];
+  return json({ id: row.id, message: row.message, status, error, a, b,
                 online: seen === null ? null : Date.now() - seen < ONLINE_MS });
+}
+
+// Which side a message's fine-tune reply is shown on: from a salted hash of its id, so it's the same on every poll
+// and at vote time, and a visitor who knows the id still can't tell. Revealed only once they've voted.
+async function tunedIsA(env, chatId) {
+  return parseInt((await digest(`${env.DISPATCH_TOKEN ?? ""}:side:${chatId}`))[0], 16) % 2 === 0;
 }
 
 // Like claim(): two dispatchers asking at once can't both take the same message.
@@ -279,8 +294,10 @@ async function claimChat(env, { machine } = {}) {
 
 // One vote per answered message: the visitor saw both replies as A and B, in random order, before picking. Kept with
 // the fine-tune it was cast on, so a rerun of the same goal starts its own count.
-async function vote(env, chatId, { pick }, request) {
-  if (!PICKS.includes(pick)) throw fail(400, `pick one of ${PICKS.join(", ")}`);
+async function vote(env, chatId, { pick: shown }, request) {
+  if (!["A", "B", "tie"].includes(shown)) throw fail(400, "pick one of A, B, tie");
+  const a = (await tunedIsA(env, chatId)) ? "tuned" : "rival";
+  const pick = shown === "tie" ? "tie" : shown === "A" ? a : a === "tuned" ? "rival" : "tuned";
   const row = await env.DB.prepare("SELECT request, status FROM chats WHERE id = ?").bind(chatId).first();
   if (!row) throw fail(404, "no such chat message");
   if (row.status !== "answered") throw fail(409, "vote once both replies are in");
@@ -290,7 +307,8 @@ async function vote(env, chatId, { pick }, request) {
   await env.DB.prepare("INSERT OR IGNORE INTO votes (chat, subject, job, pick, created) VALUES (?, ?, ?, ?, ?)")
     .bind(chatId, row.request, job, pick, Date.now()).run()
     .catch(() => { throw fail(503, "voting isn't set up on this site yet"); });
-  return votes(env, row.request);
+  const tally = await (await votes(env, row.request)).json();
+  return json({ ...tally, a, pick });  // now that it's cast: which model A was, and what the vote counted as
 }
 
 async function votes(env, subject) {
@@ -388,10 +406,11 @@ async function once(env, request, kind, create) {
 }
 
 // At most LIMITS[kind].n of `kind` per visitor per window, counted in the hits table. A database made before that
-// table just isn't limited. Now and then it also clears out old hits and chat messages past KEEP_MS.
-async function limit(env, request, kind) {
+// table just isn't limited. `who` counts everyone under one key instead of each visitor apart. Now and then it also
+// clears out old hits and chat messages past KEEP_MS.
+async function limit(env, request, kind, who = null) {
   const { n, ms, said } = LIMITS[kind];
-  const ip = request.headers.get("CF-Connecting-IP") ?? "local";
+  const ip = who ?? request.headers.get("CF-Connecting-IP") ?? "local";
   const key = `${kind}:${await digest(`${env.DISPATCH_TOKEN ?? ""}:${ip}`)}`;
   const now = Date.now();
   const used = await env.DB.prepare("SELECT COUNT(*) AS n FROM hits WHERE key = ? AND at > ?").bind(key, now - ms)

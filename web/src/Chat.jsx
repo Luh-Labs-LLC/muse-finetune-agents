@@ -25,7 +25,7 @@ export function Busy({ className = "" }) {
 
 export default function Chat({ subject }) {
   const [message, setMessage] = useState("");
-  const [turns, setTurns] = useState([]);  // {key, id, message, flip, error}
+  const [turns, setTurns] = useState([]);  // {key, id, message, error}
   const [sending, setSending] = useState(false);
   const [tally, setTally] = useState(null);
   const { data: counted } = useJson(`/api/votes/${encodeURIComponent(subject)}`);
@@ -37,14 +37,13 @@ export default function Chat({ subject }) {
     if (!text) return;
     setSending(true);
     const key = Date.now();
-    const flip = Math.random() < 0.5;  // which side the fine-tune is on, chosen here so the page can't give it away
     try {
       const r = await fetch(`/api/requests/${encodeURIComponent(subject)}/chat`, { method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": once.current }, body: JSON.stringify({ message: text }) });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error ?? `the site answered ${r.status}`);
       once.current = idempotencyKey();
-      setTurns((t) => [...t, { key, id: data.id, message: text, flip }]);
+      setTurns((t) => [...t, { key, id: data.id, message: text }]);
       setMessage("");
     } catch (err) {
       setTurns((t) => [...t, { key, message: text, error: err.message }]);
@@ -93,12 +92,13 @@ export function Votes({ tally }) {
 
 function Turn({ turn, onVoted }) {
   const chat = useChat(turn.id);
-  const [pick, setPick] = useState(null);  // what the visitor picked: "tuned", "rival" or "tie"
+  const [pick, setPick] = useState(null);      // what the visitor picked: "A", "B" or "tie"
+  const [aWas, setAWas] = useState(null);      // which model A was ("tuned" or "rival"), told by the site after the vote
   const [problem, setProblem] = useState(null);
   const error = turn.error ?? chat?.error;
   const waiting = !error && chat?.status !== "answered";
-  const sides = turn.flip ? ["tuned", "rival"] : ["rival", "tuned"];  // what A and B are
-  const text = { tuned: chat?.tuned, rival: chat?.base };
+  const text = { A: chat?.a, B: chat?.b };     // the site sends them blind, in an order only it knows
+  const model = (side) => (aWas == null ? null : (side === "A") === (aWas === "tuned") ? "tuned" : "rival");
   const name = { tuned: "Fine-tuned", rival: "Told the goal" };
 
   async function vote(p) {
@@ -108,6 +108,7 @@ function Turn({ turn, onVoted }) {
         headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pick: p }) });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error ?? `the site answered ${r.status}`);
+      setAWas(data.a);
       onVoted(data);
     } catch (err) {
       setProblem(`Your vote wasn't counted (${err.message}).`);
@@ -129,23 +130,23 @@ function Turn({ turn, onVoted }) {
       ) : (
         <>
           <div className="pair">
-            {sides.map((side, i) => (
-              <figure key={side} className={pick && pick === side ? "won" : ""}>
-                <figcaption>Reply {"AB"[i]}{pick && <> · <strong>{name[side]}</strong></>}</figcaption>
+            {["A", "B"].map((side) => (
+              <figure key={side} className={pick === side ? "won" : ""}>
+                <figcaption>Reply {side}{model(side) && <> · <strong>{name[model(side)]}</strong></>}</figcaption>
                 <blockquote>{text[side]}</blockquote>
               </figure>
             ))}
           </div>
           {pick ? (
             <p className="small" role="status">
-              {pick === "tie" ? "You called it even. " : pick === "tuned" ? "You picked the fine-tune. "
-                : "You picked the model that was just told the goal. "}
+              {pick === "tie" ? "You called it even. " : model(pick) === "tuned" ? "You picked the fine-tune. "
+                : model(pick) === "rival" ? "You picked the model that was just told the goal. " : ""}
               {problem && <span className="form-error">{problem}</span>}
             </p>
           ) : (
             <p className="vote-buttons">
-              <button type="button" className="button" onClick={() => vote(sides[0])}>A is better</button>
-              <button type="button" className="button" onClick={() => vote(sides[1])}>B is better</button>
+              <button type="button" className="button" onClick={() => vote("A")}>A is better</button>
+              <button type="button" className="button" onClick={() => vote("B")}>B is better</button>
               <button type="button" className="button" onClick={() => vote("tie")}>About the same</button>
             </p>
           )}
