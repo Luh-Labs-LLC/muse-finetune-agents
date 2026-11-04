@@ -38,11 +38,17 @@ The base model is deliberately tiny so a whole run, repairs included, fits on a 
 models are the agents, the judges and the auditor, not the student. The base is one line in `agents/models.py`;
 Muse Glimmer (30B, Apache 2.0) is the next student, with QLoRA on a 24 GB card.
 
-| Goal | Level | Rounds, wins over the model told the goal | Rules passed, **checked by code** | Off-task messages declined |
-|---|---|---|---|---|
-| Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | 18/20 → **16/20** (likely 58–92%; about 1 in 170 by luck) | one line, the four keys, allowed values: fine-tune **91%**, told the goal 3%, untrained 0% (32 prompts) | 7 of 10 → **10 of 10**; told the goal 1 of 10 |
-| Plain-English request → one Excel formula, nothing else | Standard | 11/20 → 10/18 → **10/19, 9 ties, no losses** (short of the bar) | starts with `=`, one line, balanced brackets: **94%**, told the goal 55%, untrained 0% (31 prompts) | **4 of 4**; told the goal 3 of 4 |
-| Answer like Mark Twain, reason like Plato | Strict | 11/20 → 11/17 → **8/18** | — | — |
+| Goal | Level | Rounds, wins over the model told the goal | Rules passed, **checked by code** | Off-task messages declined | Held its own against **Muse Spark itself** |
+|---|---|---|---|---|---|
+| Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | 18/20 → **16/20** (likely 58–92%; about 1 in 170 by luck) | one line, the four keys, allowed values: fine-tune **91%**, told the goal 3%, untrained 0% (32 prompts) | 7 of 10 → **10 of 10**; told the goal 1 of 10 | 7 of 20 (1 win, 6 even, 13 lost); Muse Spark passed every rule and declined 10 of 10 |
+| Plain-English request → one Excel formula, nothing else | Standard | 11/20 → 10/18 → **10/19, 9 ties, no losses** (short of the bar) | starts with `=`, one line, balanced brackets: **94%**, told the goal 55%, untrained 0% (31 prompts) | **4 of 4**; told the goal 3 of 4 | 9 of 19 (9 even, 10 lost) |
+| Answer like Mark Twain, reason like Plato | Strict | 11/20 → 11/17 → **8/18** | — | — | 0 of 18 |
+
+The last column is the frontier test, beside the bar rather than part of it: Muse Spark, the model that wrote the
+training chats, answers the same prompts itself, told the goal, and the same blind judge compares it with the
+0.6B fine-tune. The small model matched it on the pairs where the task is the format (identical formulas, the same
+JSON, every decline) and lost where judgment is needed (a tricky formula, a sentiment call, anything Twain). Code
+scores the big model on the same rules and declines, so the page shows where the gap is, not just that there is one.
 
 - The JSON run shows the repair loop and the "last round, not the best" rule at once: round 1 won 18 of 20 but
   declined only 7 of 10 off-task messages and passed every rule on 81% of replies, both under their bars; the

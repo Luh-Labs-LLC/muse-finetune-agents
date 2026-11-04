@@ -77,8 +77,9 @@ function Run({ run, subject, tally }) {
                   note={[`${run.judge.vs_prompted.ties} ties`, `likely ${range(run.judge.vs_prompted.interval)}`,
                          luck(run.judge.vs_prompted.chance), "the honest test"].filter(Boolean).join(" · ")} />
           )}
+          {run.judge?.teacher && <Teacher teacher={run.judge.teacher} judge={run.judge} />}
           {run.judge?.structure && !run.judge?.checks && <Structure structure={run.judge.structure} />}
-          {run.judge?.scope && <Scope scope={run.judge.scope} />}
+          {run.judge?.scope && <Scope scope={run.judge.scope} teacher={run.judge.teacher?.scope} />}
           {run.audit?.met != null && run.audit.sampled > 0 && (
             <Stat label="Training chats audited before training" value={`${run.audit.met} / ${run.audit.sampled}`}
                   note={`of a sample read blind by the Quality Judge did what the goal asks${run.audit.misses?.length
@@ -131,7 +132,7 @@ function Run({ run, subject, tally }) {
         {run.receipt && <Receipt receipt={run.receipt} />}
       </section>
 
-      {run.judge?.checks?.rules?.length > 0 && <Rules checks={run.judge.checks} />}
+      {run.judge?.checks?.rules?.length > 0 && <Rules checks={run.judge.checks} teacher={run.judge.teacher?.checks} />}
 
       {run.rounds?.length > 1 && <Rounds run={run} />}
 
@@ -182,6 +183,19 @@ function Cost({ cost: { device, tuned, prompted } }) {
 const whole = (x) => `${Math.round(x * 100)}%`;  // pct's decimal doesn't fit two shares in a tile
 
 // A score code measured, not a judge: for a goal that asks for JSON, the share of replies that parse as JSON
+// The fine-tune against the model that wrote its training chats: Muse Spark itself, told the goal, on the same
+// prompts, judged the same blind way. Beside the bar, not part of it: how much of the big model fits in the small one.
+function Teacher({ teacher: t, judge }) {
+  const held = t.tuned_wins + t.ties;
+  return (
+    <Stat label={`Held its own against ${agentName(t.model)} itself`} value={`${held} / ${t.prompts}`}
+          note={`${t.tuned_wins} preferred, ${t.ties} even, ${t.teacher_wins} lost to the model that wrote its training
+            chats, told the goal, on the same prompts · a 0.6B model offline vs the frontier model on the API${
+            t.off ? ` · off-task: ${t.off.tuned_wins + t.off.ties} / ${t.off.prompts}` : ""}${
+            t.hard ? ` · hard: ${t.hard.tuned_wins + t.hard.ties} / ${t.hard.prompts}` : ""}`} />
+  );
+}
+
 function Structure({ structure: s }) {
   if (s.tuned == null) return null;
   return (
@@ -193,13 +207,14 @@ function Structure({ structure: s }) {
 
 // The rules the Job Architect picked from checks.py for this goal, and each model's pass rate on them: scored by
 // code on every on-task reply, so these numbers owe nothing to any judge
-function Rules({ checks }) {
+function Rules({ checks, teacher }) {
+  const big = (rule) => teacher?.rules?.find((r) => r.rule === rule)?.teacher;
   return (
     <section id="rules" aria-labelledby="rules-title">
       <h2 id="rules-title">Rules checked by code</h2>
       <p className="muted">
         Before training, the Job Architect picked these rules from a fixed list, and its training chats had to pass
-        them. After it, code applied them to every reply from all three models on the {checks.prompts} on-task test
+        them. After it, code applied them to every reply from all {teacher ? "four" : "three"} models on the {checks.prompts} on-task test
         prompts. A pass rate is a measurement, not an opinion.
       </p>
       <div className="tile panel">
@@ -207,15 +222,17 @@ function Rules({ checks }) {
           <table>
             <thead>
               <tr><th scope="col">Rule</th><th scope="col">Fine-tune</th><th scope="col">Told the goal</th>
-                <th scope="col">Untrained</th></tr>
+                <th scope="col">Untrained</th>{teacher && <th scope="col">Muse Spark, told the goal</th>}</tr>
             </thead>
             <tbody>
               {checks.rules.map((r) => (
                 <tr key={r.rule}><th scope="row"><code>{r.rule}</code></th>
-                  <td>{whole(r.tuned)}</td><td>{whole(r.prompted ?? 0)}</td><td>{whole(r.base ?? 0)}</td></tr>
+                  <td>{whole(r.tuned)}</td><td>{whole(r.prompted ?? 0)}</td><td>{whole(r.base ?? 0)}</td>
+                  {teacher && <td>{whole(big(r.rule) ?? 0)}</td>}</tr>
               ))}
               <tr><th scope="row">Every rule at once</th><td>{whole(checks.all.tuned)}</td>
-                <td>{whole(checks.all.prompted ?? 0)}</td><td>{whole(checks.all.base ?? 0)}</td></tr>
+                <td>{whole(checks.all.prompted ?? 0)}</td><td>{whole(checks.all.base ?? 0)}</td>
+                {teacher && <td>{whole(teacher.all?.teacher ?? 0)}</td>}</tr>
             </tbody>
           </table>
         </div>
@@ -226,13 +243,14 @@ function Rules({ checks }) {
 
 // For a narrow task: the share of off-task messages ("what's the weather", to a formula model) each model declined
 // with the sentence it was trained on, measured by code. Forcing the task onto them scores 0 here.
-function Scope({ scope: s }) {
+function Scope({ scope: s, teacher }) {
   if (s.tuned == null) return null;
   return (
     <Stat label="Off-task messages declined, checked by code" value={`${whole(s.tuned)} vs ${whole(s.prompted ?? 0)}`}
           note={`the fine-tune, which learned the sentence, vs the model told the goal and the same sentence (untrained,
-            told neither: ${whole(s.base ?? 0)}), on ${s.prompts} messages outside the task; forcing the task onto one
-            counts as a miss. The sentence: “${s.decline}”`} />
+            told neither: ${whole(s.base ?? 0)}${teacher?.teacher != null ? `; Muse Spark told it: ${whole(teacher.teacher)}` : ""}),
+            on ${s.prompts} messages outside the task; forcing the task onto one counts as a miss. The sentence:
+            “${s.decline}”`} />
   );
 }
 
@@ -329,6 +347,11 @@ function ReadingScores({ run }) {
         )}
         <li><strong>Over the untrained model</strong> is the easy comparison: that model was never told the goal, so a
           high score mostly shows the fine-tune learned the style.</li>
+        {run.judge.teacher && (
+          <li><strong>Against {agentName(run.judge.teacher.model)} itself</strong> is not a bar: it asks how much of the
+            frontier model's skill at this one task fits in a 0.6B model with no goal in the prompt. A pair the
+            fine-tune won or drew is one where the small model was as good as the big one, in the judge's reading.</li>
+        )}
         <li>Each reply pair is judged twice, in both orders, and only counts when both readings agree. The range is
           where the true rate likely sits, given only {run.judge.prompts} test prompts; “1 in N by luck” is the chance a
           coin would win at least as many of the decided pairs.</li>
@@ -370,6 +393,12 @@ function Answers({ run }) {
                   p.fails?.length ? ` · breaks ${p.fails.join(", ")}` : ""}</figcaption>
                 <blockquote>{p.tuned}</blockquote>
               </figure>
+              {p.teacher != null && (
+                <figure className={p.vs_teacher === "base" ? "won" : ""}>
+                  <figcaption>{agentName(run.judge.teacher?.model)}, told the goal</figcaption>
+                  <blockquote>{p.teacher}</blockquote>
+                </figure>
+              )}
             </div>
             {p.reason && (
               <p className="reason">
@@ -379,6 +408,11 @@ function Answers({ run }) {
             {p.prompted_reason && (
               <p className="reason">
                 <strong>Against the model told the goal: {p.vs_prompted === "tie" ? "tie." : p.vs_prompted === "tuned" ? "fine-tune preferred." : "told-the-goal preferred."}</strong> {p.prompted_reason}
+              </p>
+            )}
+            {p.teacher_reason && (
+              <p className="reason">
+                <strong>Against {agentName(run.judge.teacher?.model)} itself: {p.vs_teacher === "tie" ? "tie." : p.vs_teacher === "tuned" ? "fine-tune preferred." : "Muse Spark preferred."}</strong> {p.teacher_reason}
               </p>
             )}
           </li>

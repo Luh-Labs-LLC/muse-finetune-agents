@@ -15,7 +15,7 @@ const STEPS = [
   { who: "One GPU", title: "A LoRA adapter trains on it",
     body: "A fifth of the chats is held back. The loss on them is measured before training and after every epoch, and the best epoch is kept." },
   { who: "Muse Spark · Agent 2", title: "The Quality Judge grades the result",
-    body: "Both models answer held-back prompts, prompts people wrote and prompts the judge writes itself. Code scores every reply on the rules; the judge picks the better reply blind, twice with the order swapped, and only a verdict both readings agree on counts." },
+    body: "Both models answer held-back prompts, prompts people wrote and prompts the judge writes itself. Code scores every reply on the rules; the judge picks the better reply blind, twice with the order swapped, and only a verdict both readings agree on counts. Then Muse Spark answers the same prompts itself, told the goal, and is judged against the fine-tune the same way: how much of the big model fits in the small one." },
   { who: "Muse Spark · Agents 1 and 2", title: "If it isn’t good enough, they repair it",
     body: "Short of the bar (wins, rules passed, off-task messages declined), the Job Architect writes new chats aimed at what was marked down, the model retrains, and it’s judged again on new prompts. Up to four more rounds." },
 ];
@@ -81,7 +81,9 @@ function JudgeSummary({ run: data }) {
         <p>
           {j.vs_prompted ? (
             <>{agentName(data.judge_model)} preferred the fine-tuned {data.base_title} over the same model told the goal
-              on {j.vs_prompted.tuned_wins} of {j.prompts} unseen prompts, and over the untrained model on {j.tuned_wins}.</>
+              on {j.vs_prompted.tuned_wins} of {j.prompts} unseen prompts, and over the untrained model on {j.tuned_wins}.{
+              j.teacher ? ` Against Muse Spark itself, told the goal, the 0.6B fine-tune held its own on ${
+                j.teacher.tuned_wins + j.teacher.ties} of ${j.teacher.prompts}.` : ""}</>
           ) : (
             <>{agentName(data.judge_model)} preferred the fine-tuned {data.base_title} over the untrained model on
               {" "}{j.tuned_wins} of {j.prompts} unseen prompts ({j.ties} ties).</>
