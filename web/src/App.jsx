@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 import { Footer } from "./components.jsx";
 import CommandMenu from "./CommandMenu.jsx";
 import DemoChat from "./DemoChat.jsx";
-import Nav from "./Nav.jsx";
+import Sidebar from "./Sidebar.jsx";
 import Toasts from "./Toast.jsx";
 import { SITES, currentSite } from "./site.js";
 import { useJson } from "./lib/data.js";
@@ -24,13 +24,16 @@ export default function App() {
   return (
     <>
       <a className="skip" href="#main">Skip to content</a>
+      <div className="backdrop" aria-hidden="true"><span className="orb o1" /><span className="orb o2" /><span className="orb o3" /><span className="orb o4" /></div>
       <div className="shell">
-        <Nav site={site} run={run.data} />
-        <main id="main" tabIndex={-1}>
-          {site === "results" ? <ResultsPage run={run} runs={id ? null : runs.data} onPickRun={pickJob} />
-                              : <MetaPage run={run} />}
-        </main>
-        <Footer />
+        <Sidebar site={site} run={run.data} />
+        <div id="content" className="content">
+          <main id="main" tabIndex={-1}>
+            {site === "results" ? <ResultsPage run={run} runs={id ? null : runs.data} onPickRun={pickJob} />
+                                : <MetaPage run={run} />}
+          </main>
+          <Footer />
+        </div>
       </div>
       <DemoChat />
       <CommandMenu runs={id ? null : runs.data} currentJob={job} onPickRun={site === "results" ? pickJob : null} />

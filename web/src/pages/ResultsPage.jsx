@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Chat, { Votes } from "../Chat.jsx";
 import { CountUp, Skeleton, Sparkline, Stat, useReveal } from "../components.jsx";
 import { RIGOR_NAMES, SETS, Scorebar, requestId } from "../Request.jsx";
-import { Board } from "./MetaPage.jsx";
+import { Board, Topbar } from "./MetaPage.jsx";
 import { agentName, luck, num, pct, prefetch, range, useJson } from "../lib/data.js";
 
 export default function ResultsPage({ run, runs, onPickRun }) {
@@ -19,30 +19,15 @@ export default function ResultsPage({ run, runs, onPickRun }) {
 
   return (
     <>
-      <section id="fine-tune" className="hero" aria-labelledby="hero-title">
-        <div className="glow" aria-hidden="true" />
-        <p className="eyebrow">
-          {published ? `${published.title} · ${published.base_title}${published.rigor ? ` · ${RIGOR_NAMES[published.rigor.level] ?? published.rigor.level}` : ""}` : "Fine-tune results"}
-        </p>
-        {headline && (
-          <p className="hero-number"><CountUp to={headline.tuned_wins} /><small>of {j.prompts}</small></p>
-        )}
-        <h1 id="hero-title">
-          {headline ? (j.vs_prompted ? "Preferred over the same model told the goal." : "Preferred over the untrained model.")
-            : published ? published.title : run.loading ? "Loading the run." : "No run published yet."}
-        </h1>
-        <p className="lede">
-          {published
-            ? `One sentence became a model in ${took} on one GPU. Then ${agentName(published.judge_model)} read every pair blind, twice${
-                j?.second ? `, and ${judgeName(j.second.model)} read them all again` : ""}.`
-            : run.loading ? "" : "This page fills in when a request finishes. Request one on the agents page."}
-        </p>
-        {published && (
-          <p className="actions">
-            <a className="button primary" href="#answers">Read every answer</a>
-            {subject && <a className="button" href="#try">Try it blind</a>}
-          </p>
-        )}
+      <section id="fine-tune" aria-labelledby="hero-title">
+        <Topbar eyebrow={published ? `${published.base_title} · LoRA fine-tune${published.rigor ? ` · ${RIGOR_NAMES[published.rigor.level] ?? published.rigor.level}` : ""}` : "Fine-tune results"}
+                title={<span id="hero-title">{published ? published.title : run.loading ? "Loading the run" : "No run published yet"}</span>}
+                sub={published
+                  ? `One sentence became a model in ${took} on one GPU. Then ${agentName(published.judge_model)} read every pair blind, twice${
+                      j?.second ? `, and ${judgeName(j.second.model)} read them all again` : ""}.`
+                  : run.loading ? "" : "This page fills in when a request finishes. Request one on the agents page."}>
+          {published && <a className="button" href="#answers">Read every answer</a>}
+        </Topbar>
         {runs?.length > 1 && <RunPicker runs={runs} current={published?.job} onPick={onPickRun} />}
       </section>
 
@@ -57,7 +42,7 @@ function RunPicker({ runs, current, onPick }) {
   const warm = (e) => { const a = e.target.closest("a[data-job]"); if (a) prefetch(`/results/${a.dataset.job}.json`); };
   return (
     <nav className="runpicker" aria-label="Published fine-tunes" onPointerOver={warm} onFocusCapture={warm}>
-      <Board runs={runs} current={current} onPick={onPick} />
+      <Board runs={runs} current={current} onPick={onPick} tabs />
     </nav>
   );
 }
@@ -80,31 +65,63 @@ function RunSkeleton() {
 
 function Run({ run, subject, tally }) {
   const epochs = run.epochs;
+  const headline = run.judge ? (run.judge.vs_prompted ?? run.judge) : null;
   // the trainer keeps the epoch with the lowest held-back loss, which isn't always the last
   const first = epochs[0], last = epochs.find((e) => e.epoch === run.kept_epoch) ?? epochs[epochs.length - 1];
   return (
     <>
-      <section id="run" className="band light" aria-labelledby="run-title">
-        <h2 id="run-title">Three rivals. One fine-tune.</h2>
-        <p className="center">
-          The same {run.judge?.prompts ?? "unseen"} prompts, none seen in training, judged blind in both orders. A win
-          only counts when both readings agree.
-        </p>
-        {run.judge && <Ladder run={run} />}
-        <dl className="stats headline">
+      <section id="run" aria-labelledby="run-title">
+        <h2 id="run-title" className="sr-only">The verdict</h2>
+        <dl className="stats kpis">
+          {headline && (
+            <Stat label={run.judge.vs_prompted ? "Preferred over the model told the goal" : "Preferred over the untrained model"}
+                  value={<><CountUp to={headline.tuned_wins} /><small> / {run.judge.prompts}</small></>}
+                  note={<Delta tone={headline.tuned_wins / run.judge.prompts >= 0.8 ? "good" : "even"}>
+                    {headline.prompted_wins === 0 || headline.base_wins === 0 ? "no losses" : `${headline.prompted_wins ?? headline.base_wins} lost`}
+                    {headline.interval ? ` · likely ${range(headline.interval)}` : ""}</Delta>} />
+          )}
+          {run.judge?.teacher && (
+            <Stat label="Even or better against Muse Spark itself"
+                  value={<><CountUp to={run.judge.teacher.tuned_wins + run.judge.teacher.ties} /><small> / {run.judge.teacher.prompts}</small></>}
+                  note={<Delta tone="even">{run.judge.teacher.ties} even · {run.judge.teacher.teacher_wins} lost to the frontier model</Delta>} />
+          )}
           {run.judge?.checks?.all && (
             <Stat label="Passes every rule, checked by code"
-                  value={`${whole(run.judge.checks.all.tuned)} vs ${whole(run.judge.checks.all.prompted ?? 0)}`}
-                  note={`the fine-tune vs the model told the goal, on ${run.judge.checks.prompts} on-task prompts`} />
+                  value={<>{whole(run.judge.checks.all.tuned)}<small> vs {whole(run.judge.checks.all.prompted ?? 0)}</small></>}
+                  note={<Delta tone="good">the fine-tune vs the model told the goal</Delta>} />
           )}
           {run.judge?.structure && !run.judge?.checks && <Structure structure={run.judge.structure} />}
-          {run.judge?.scope && <Scope scope={run.judge.scope} teacher={run.judge.teacher?.scope} />}
-          {run.judge?.second && (
-            <Stat label={`A second judge, ${judgeName(run.judge.second.model)}, agreed`}
-                  value={`${run.judge.second.agree} / ${run.judge.prompts}`}
-                  note={`${run.judge.second.kappa != null ? `κ ${run.judge.second.kappa.toFixed(2)} · ` : ""}a different model, so an independent reading`} />
+          {run.judge?.scope && (
+            <Stat label="Off-task messages declined, checked by code"
+                  value={<>{whole(run.judge.scope.tuned)}<small> vs {whole(run.judge.scope.prompted ?? 0)}</small></>}
+                  note={<Delta tone={run.judge.scope.tuned >= 0.75 ? "good" : "bad"}>on {run.judge.scope.prompts} messages outside the task</Delta>} />
           )}
         </dl>
+        <div className="dash">
+          <div className="tile panel">
+            <h3 className="panel-title">Three rivals, one fine-tune</h3>
+            <p className="small muted">The same {run.judge?.prompts} unseen prompts, judged blind in both orders. A win only counts when both readings agree.</p>
+            {run.judge && <Ladder run={run} />}
+          </div>
+          <div className="dash-side">
+            {run.rigor && <Bar run={run} headline={headline} />}
+            {run.judge?.second && (
+              <div className="tile panel">
+                <h3 className="panel-title">A second judge</h3>
+                <p className="big-number">{run.judge.second.agree}<span>/{run.judge.prompts} agreed</span></p>
+                <p className="small muted">{judgeName(run.judge.second.model)}, a different model, re-read every pair{
+                  run.judge.second.kappa != null ? ` (κ ${run.judge.second.kappa.toFixed(2)})` : ""}. It preferred the fine-tune on {run.judge.second.tuned_wins}.</p>
+              </div>
+            )}
+            {run.judge?.cost && (
+              <div className="tile panel">
+                <h3 className="panel-title">Cheaper to run</h3>
+                <p className="big-number">{num(run.judge.cost.tuned.prompt_tokens)}<span> vs {num(run.judge.cost.prompted.prompt_tokens)} tokens</span></p>
+                <p className="small muted">No goal in the prompt. A reply took {run.judge.cost.tuned.seconds.toFixed(1)} s against {run.judge.cost.prompted.seconds.toFixed(1)} s on the same GPU.</p>
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       <section id="details" aria-labelledby="details-title">
@@ -187,6 +204,34 @@ function Run({ run, subject, tally }) {
 
       <Answers run={run} />
     </>
+  );
+}
+
+// The small coloured line under a KPI: green for good news, amber for even, red for a miss
+function Delta({ tone, children }) {
+  return <span className={`delta ${tone}`}>{children}</span>;
+}
+
+// The bar the run had to reach, as a ring: wins over prompts, and whether it got there
+function Bar({ run, headline }) {
+  const share = headline ? headline.tuned_wins / run.judge.prompts : 0;
+  const met = run.rigor.met;
+  return (
+    <div className="tile panel bar-tile">
+      <h3 className="panel-title">{RIGOR_NAMES[run.rigor.level] ?? run.rigor.level}</h3>
+      <div className="ring-row">
+        <div className={`ring ${met == null ? "" : met ? "met" : "short"}`} style={{ "--p": share * 100 }} role="img"
+             aria-label={`${Math.round(share * 100)}% of prompts won; the bar is 80%`}>
+          <span className="ring-value">{Math.round(share * 100)}%</span>
+          <span className="ring-sub">won</span>
+        </div>
+        <dl className="ring-facts">
+          <div><dt>The bar</dt><dd>80% won</dd></div>
+          <div><dt>Rounds</dt><dd>{run.rounds?.length ?? 1}</dd></div>
+          <div><dt>Verdict</dt><dd>{met == null ? "no bar at this level" : met ? "reached" : "short, published as it is"}</dd></div>
+        </dl>
+      </div>
+    </div>
   );
 }
 

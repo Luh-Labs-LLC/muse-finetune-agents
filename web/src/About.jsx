@@ -3,7 +3,7 @@ import { TEAM } from "./team.js";
 
 export default function About() {
   return (
-    <section id="about" className="story band light" aria-labelledby="about-title">
+    <section id="about" className="story" aria-labelledby="about-title">
       <h2 id="about-title">
         {TEAM.length === 1 ? `Built by ${TEAM[0].name}, at Luh Labs` : `Built by ${TEAM.map((p) => p.name).join(" and ")}`}
       </h2>
