@@ -525,8 +525,8 @@ function Answer({ p, n, run, rival, all, second, open }) {
         </summary>
         <div className="answer-body">
           <div className="duel">
-            <Reply title="Fine-tuned" text={p.tuned} won={v === "tuned"} />
-            <Reply title={rival.name} text={rival.text(p)} won={v === "base"} />
+            <Reply title="Fine-tuned" text={p.tuned} won={v === "tuned"} over={rival.phrase} />
+            <Reply title={rival.name} text={rival.text(p)} won={v === "base"} over="the fine-tune" />
           </div>
           <p className="verdict-line">
             <strong>{agentName(run.judge_model)}: {OUTCOME[v]?.[1] ?? "no verdict"}.</strong> {rival.reason(p)}
@@ -544,7 +544,7 @@ function Answer({ p, n, run, rival, all, second, open }) {
               <summary className="small">Also compared with {others.map((r) => r.phrase).join(" and ")}</summary>
               {others.map((r) => (
                 <div key={r.id} className="also-one">
-                  <Reply title={r.name} text={r.text(p)} won={r.verdict(p) === "base"} small />
+                  <Reply title={r.name} text={r.text(p)} won={r.verdict(p) === "base"} over="the fine-tune" small />
                   <p className="verdict-line small"><strong>{OUTCOME[r.verdict(p)]?.[1] ?? "no verdict"}.</strong> {r.reason(p)}</p>
                 </div>
               ))}
@@ -558,12 +558,12 @@ function Answer({ p, n, run, rival, all, second, open }) {
 
 const LONG = 700;  // characters; a reply past this starts folded, so a rambling rival doesn't push the verdict away
 
-function Reply({ title, text, won, small }) {
+function Reply({ title, text, won, over, small }) {
   const [whole, setWhole] = useState(false);
   const long = (text ?? "").length > LONG;
   return (
     <figure className={`reply${won ? " won" : ""}${small ? " small" : ""}`}>
-      <figcaption>{title}{won && <span className="won-tag"> · preferred</span>}</figcaption>
+      <figcaption>{title}{won && <span className="won-tag"> · preferred over {over}</span>}</figcaption>
       <blockquote className={long && !whole ? "clamp" : ""}>{text ?? <span className="muted">(no reply)</span>}</blockquote>
       {long && (
         <button type="button" className="more" onClick={() => setWhole((w) => !w)} aria-expanded={whole}>
