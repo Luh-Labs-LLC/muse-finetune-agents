@@ -40,10 +40,14 @@ Muse Glimmer (30B, Apache 2.0) is the next student, with QLoRA on a 24 GB card.
 
 | Goal | Level | Rounds, wins over the model told the goal | Rules passed, **checked by code** | Off-task messages declined |
 |---|---|---|---|---|
-| Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | **17 / 20** in one round (likely 64–95%; about 1 in 800 by luck) | one line, the four keys, allowed values: fine-tune **94%**, told the goal 0%, untrained 0% (32 prompts) | **5 of 5**; told the goal 1 of 5 |
+| Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | 18/20 → **16/20** (likely 58–92%; about 1 in 170 by luck) | one line, the four keys, allowed values: fine-tune **91%**, told the goal 3%, untrained 0% (32 prompts) | 7 of 10 → **10 of 10**; told the goal 1 of 10 |
 | Plain-English request → one Excel formula, nothing else | Standard | 11/20 → 10/18 → **10/19, 9 ties, no losses** (short of the bar) | starts with `=`, one line, balanced brackets: **94%**, told the goal 55%, untrained 0% (31 prompts) | **4 of 4**; told the goal 3 of 4 |
 | Answer like Mark Twain, reason like Plato | Strict | 11/20 → 11/17 → **8/18** | — | — |
 
+- The JSON run shows the repair loop and the "last round, not the best" rule at once: round 1 won 18 of 20 but
+  declined only 7 of 10 off-task messages and passed every rule on 81% of replies, both under their bars; the
+  Architect wrote 23 chats aimed at those misses, and round 2 declined 10 of 10 and passed 91%, with 16 wins.
+  Round 2 is what's published.
 - The Excel run is published short of its bar on purpose: the bar counts wins, and a 0.6B model told the goal
   writes the same `=SUMIFS(…)` for a short request, so nine pairs tied. The fine-tune's edge is on the long briefs
   (every win), the rules and the off-task messages, and it never lost a pair. The Twain run fell short too; the
@@ -51,11 +55,11 @@ Muse Glimmer (30B, Apache 2.0) is the next student, with QLoRA on a 24 GB card.
 - A narrow goal declines what isn't its job: asked for the weather or a poem, both the JSON and the Excel fine-tunes
   answer with the one decline sentence the Architect wrote, and code counts how often each model does. The model
   told the goal is told that sentence too, so the comparison is fair.
-- The fine-tune doesn't need the goal sent with every message: the JSON model used **95 prompt tokens a message
-  against 202** for the model told the goal (53% fewer), and replied in 1.7 s against 3.4 s on the same GPU; the
+- The fine-tune doesn't need the goal sent with every message: the JSON model used **88 prompt tokens a message
+  against 195** for the model told the goal (55% fewer), and replied in 1.4 s against 1.9 s on the same GPU; the
   Excel model 99 against 197, in 2.8 s against 7.3 s.
-- A second judge, a newer Muse Spark on the cheaper Contributor tier, read every pair again and agreed on 17 of 20
-  (JSON, Cohen's κ 0.51) and 17 of 19 (Excel, κ 0.79). It's the same model family, so it checks consistency, not
+- A second judge, a newer Muse Spark on the cheaper Contributor tier, read every pair again and agreed on 20 of 20
+  (JSON, Cohen's κ 1.0) and 17 of 19 (Excel, κ 0.79). It's the same model family, so it checks consistency, not
   independence.
 - Visitors can vote too: the chat shows the fine-tune and the model told the goal as A and B in random order, and
   the tally sits beside the judges' scores.

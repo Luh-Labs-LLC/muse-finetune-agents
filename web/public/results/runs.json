@@ -1,10 +1,10 @@
 [
   {
-    "job": "support-msg-json-parser-6eb686",
+    "job": "parse-support-msg-json-c9d1fe-r2",
     "title": "Support ticket triage, as JSON",
     "base_title": "Qwen3 0.6B",
     "date": "2026-11-03",
-    "wins": 17,
+    "wins": 16,
     "prompts": 20,
     "against": "told the goal"
   },
