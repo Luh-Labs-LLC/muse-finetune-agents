@@ -184,9 +184,7 @@ async function show(env, id) {
     ? (await env.DB.prepare("SELECT COUNT(*) AS n FROM requests WHERE status = 'queued' AND created < ?")
         .bind(row.created).first()).n
     : 0;
-  // A database made before the machines table (schema.sql) just doesn't say whether one is online.
-  const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
-  return json({ ...view(row, ahead), online: seen === null ? null : Date.now() - seen < ONLINE_MS });
+  return json({ ...view(row, ahead), online: await online(env) });
 }
 
 // For the form, before anyone submits: is a GPU there, and how long a new request would wait
@@ -197,9 +195,7 @@ async function status(env) {
     "SELECT SUM(status = 'queued') AS queued, SUM(status IN ('planning', 'training', 'judging') AND " +
     "COALESCE(updated, created) > ?) AS running FROM requests"
   ).bind(Date.now() - STALLED_MS).first();
-  const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
-  return json({ online: seen === null ? null : Date.now() - seen < ONLINE_MS,
-                queued: counts?.queued ?? 0, running: counts?.running ?? 0 });
+  return json({ online: await online(env), queued: counts?.queued ?? 0, running: counts?.running ?? 0 });
 }
 
 // Atomic: two dispatchers asking at once can't both get the same request.
@@ -267,11 +263,9 @@ async function chat(env, chatId) {
     status = "failed";
     error = "no GPU was free to answer it";
   }
-  const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
   // The page gets the two replies as A and B only, in an order it can't work out, so the vote is blind for real
   const [a, b] = (await tunedIsA(env, row.id)) ? [row.tuned, row.base] : [row.base, row.tuned];
-  return json({ id: row.id, message: row.message, status, error, a, b,
-                online: seen === null ? null : Date.now() - seen < ONLINE_MS });
+  return json({ id: row.id, message: row.message, status, error, a, b, online: await online(env) });
 }
 
 // Which side a message's fine-tune reply is shown on: from a salted hash of its id, so it's the same on every poll
@@ -375,9 +369,7 @@ async function heard(env, id) {
     status = "failed";
     error = "no GPU was free to answer it";
   }
-  const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
-  return json({ id: row.id, model: row.model, status, reply: row.reply, error,
-                online: seen === null ? null : Date.now() - seen < ONLINE_MS });
+  return json({ id: row.id, model: row.model, status, reply: row.reply, error, online: await online(env) });
 }
 
 async function claimTalk(env, { machine } = {}) {
@@ -454,6 +446,21 @@ async function limit(env, request, kind, who = null) {
 async function digest(text) {
   const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(bytes)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Whether a machine is here: one checked in within ONLINE_MS, or one is in the middle of a request and reported
+// within BUSY_MS (planning and judging can go minutes between reports, and a machine mid-job is anything but
+// offline). Null when the database was made before the machines table (schema.sql): it just can't say.
+const BUSY_MS = 10 * 60_000;
+
+async function online(env) {
+  const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
+  if (seen === null) return null;
+  if (Date.now() - seen < ONLINE_MS) return true;
+  const busy = await env.DB.prepare(
+    "SELECT 1 AS yes FROM requests WHERE status IN ('planning', 'training', 'judging') AND COALESCE(updated, created) > ? LIMIT 1")
+    .bind(Date.now() - BUSY_MS).first().catch(() => null);
+  return Boolean(busy);
 }
 
 // A machine's check-in is written at most every SEEN_EVERY_MS: a dispatcher asks for work every two seconds, and
