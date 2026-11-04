@@ -144,9 +144,12 @@ async function show(env, id) {
 
 // For the form, before anyone submits: is a GPU there, and how long a new request would wait
 async function status(env) {
+  // A request in progress whose machine went quiet (view() shows it as failed) isn't running: without this bound a
+  // row left "training" by a dispatcher that died would pause the chat and pad the queue for everyone, for good
   const counts = await env.DB.prepare(
-    "SELECT SUM(status = 'queued') AS queued, SUM(status IN ('planning', 'training', 'judging')) AS running FROM requests"
-  ).first();
+    "SELECT SUM(status = 'queued') AS queued, SUM(status IN ('planning', 'training', 'judging') AND " +
+    "COALESCE(updated, created) > ?) AS running FROM requests"
+  ).bind(Date.now() - STALLED_MS).first();
   const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
   return json({ online: seen === null ? null : Date.now() - seen < ONLINE_MS,
                 queued: counts?.queued ?? 0, running: counts?.running ?? 0 });
