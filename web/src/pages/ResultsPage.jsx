@@ -79,6 +79,17 @@ function Run({ run, subject, tally }) {
           )}
           {run.judge?.structure && <Structure structure={run.judge.structure} />}
           {run.judge?.scope && <Scope scope={run.judge.scope} />}
+          {run.audit?.met != null && run.audit.sampled > 0 && (
+            <Stat label="Training chats audited before training" value={`${run.audit.met} / ${run.audit.sampled}`}
+                  note={`of a sample read blind by the Quality Judge did what the goal asks${run.audit.misses?.length
+                    ? `; the rest were sent back to the Job Architect to rewrite` : ""}`} />
+          )}
+          {run.judge?.checks?.all && (
+            <Stat label="Passes every rule, checked by code"
+                  value={`${whole(run.judge.checks.all.tuned)} vs ${whole(run.judge.checks.all.prompted ?? 0)}`}
+                  note={`the fine-tune vs the model told the goal (untrained: ${whole(run.judge.checks.all.base ?? 0)}) on
+                    ${run.judge.checks.prompts} on-task prompts; each rule is below`} />
+          )}
           {run.judge && <Stat label="Preferred over the untrained model"
                               value={`${run.judge.tuned_wins} / ${run.judge.prompts}`}
                               note={[`${run.judge.ties} ties`, run.judge.interval && `likely ${range(run.judge.interval)}`,
@@ -118,6 +129,8 @@ function Run({ run, subject, tally }) {
         <p className="run-settings muted small">{run.settings}</p>
         {run.receipt && <Receipt receipt={run.receipt} />}
       </section>
+
+      {run.judge?.checks?.rules?.length > 0 && <Rules checks={run.judge.checks} />}
 
       {run.rounds?.length > 1 && <Rounds run={run} />}
 
@@ -174,6 +187,39 @@ function Structure({ structure: s }) {
     <Stat label="Valid JSON, checked by code" value={`${whole(s.tuned)} vs ${whole(s.prompted ?? s.base ?? 0)}`}
           note={`the fine-tune vs the model told the goal (untrained: ${whole(s.base ?? 0)}), over all ${s.prompts} test
             prompts: parsed, not judged`} />
+  );
+}
+
+// The rules the Job Architect picked from checks.py for this goal, and each model's pass rate on them: scored by
+// code on every on-task reply, so these numbers owe nothing to any judge
+function Rules({ checks }) {
+  return (
+    <section id="rules" aria-labelledby="rules-title">
+      <h2 id="rules-title">Rules checked by code</h2>
+      <p className="muted">
+        Before training, the Job Architect picked these rules from a fixed list, and its training chats had to pass
+        them. After it, code applied them to every reply from all three models on the {checks.prompts} on-task test
+        prompts. A pass rate is a measurement, not an opinion.
+      </p>
+      <div className="tile panel">
+        <div className="table-wrap" tabIndex={0} role="region" aria-labelledby="rules-title">
+          <table>
+            <thead>
+              <tr><th scope="col">Rule</th><th scope="col">Fine-tune</th><th scope="col">Told the goal</th>
+                <th scope="col">Untrained</th></tr>
+            </thead>
+            <tbody>
+              {checks.rules.map((r) => (
+                <tr key={r.rule}><th scope="row"><code>{r.rule}</code></th>
+                  <td>{whole(r.tuned)}</td><td>{whole(r.prompted ?? 0)}</td><td>{whole(r.base ?? 0)}</td></tr>
+              ))}
+              <tr><th scope="row">Every rule at once</th><td>{whole(checks.all.tuned)}</td>
+                <td>{whole(checks.all.prompted ?? 0)}</td><td>{whole(checks.all.base ?? 0)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -318,7 +364,8 @@ function Answers({ run }) {
                 </figure>
               )}
               <figure className={p.tuned_won || p.vs_prompted === "tuned" ? "won" : ""}>
-                <figcaption>Fine-tuned{p.flagged ? " · flagged as false or unhelpful" : ""}</figcaption>
+                <figcaption>Fine-tuned{p.flagged ? " · flagged as false or unhelpful" : ""}{
+                  p.fails?.length ? ` · breaks ${p.fails.join(", ")}` : ""}</figcaption>
                 <blockquote>{p.tuned}</blockquote>
               </figure>
             </div>

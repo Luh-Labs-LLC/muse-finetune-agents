@@ -71,7 +71,13 @@ A fine-tune that beats an untrained model on its own goal proves little: that mo
 - Each pair is judged **twice, in both orders**, and only counts when both readings agree.
 - The judge won't let style beat a correct answer, and it **flags false or unhelpful replies**; the count is shown.
 - Every score comes with its **95% range**: 19 of 20 means about 76–99%, not 95%.
-- Where code can score a goal, it does: a goal that asks for JSON reports the share of replies that parse.
+- **Code scores what code can.** The Job Architect picks each goal's rules from a fixed library
+  (`agents/checks.py`: `exact_sentences 2`, `no_bullets`, `starts_with "="`, `one_line`, `balanced_brackets`,
+  `json_keys [...]`, `line_prefixes [...]`, and so on; it can't invent one). Its training chats must pass them before
+  any GPU time is spent; afterwards every reply from all three models is scored on every rule, the results page
+  shows each rule's pass rate, a reply that breaks one is named in the repair loop, and Standard and Strict require
+  the fine-tune to pass every rule on 80% of its on-task test prompts. The judge is left with what code can't
+  measure: whether the reply is true, helpful and natural.
 - **A narrow task has to know what isn't its job.** An early Excel-formula model answered "what's the weather" with
   a formula. For a goal that's a task on a kind of input (extract, convert, classify), the Job Architect now states
   the one sentence the model says to anything else, trains it on off-task messages answered with that sentence, and
