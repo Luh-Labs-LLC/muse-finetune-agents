@@ -16,6 +16,17 @@ export function openCommandMenu() {
   window.dispatchEvent(new Event(OPEN));
 }
 
+// Dark mode follows the system unless the person picks one here; the choice is kept and applied early by index.html.
+function isDark() {
+  const set = document.documentElement.dataset.theme;
+  return set ? set === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function toggleTheme() {
+  const next = isDark() ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("theme", next); } catch { /* storage refused: it lasts the page */ }
+}
+
 export default function CommandMenu({ runs, currentJob, onPickRun }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -57,6 +68,7 @@ export default function CommandMenu({ runs, currentJob, onPickRun }) {
       { group: "Do", label: "Copy a link to this page", icon: "external",
         run: () => navigator.clipboard?.writeText(location.href).catch(() => {}) },
       { group: "Do", label: "Request a fine-tune", icon: "compose", run: go(siteHref("meta", "request")) },
+      { group: "Do", label: isDark() ? "Switch to light mode" : "Switch to dark mode", icon: "spark", run: toggleTheme },
     ];
     return items;
   }, [runs, currentJob, onPickRun]);
