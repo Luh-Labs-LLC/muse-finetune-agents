@@ -2,14 +2,14 @@
 // trained), talk to it, and when it isn't good enough at something, teach it: one sentence becomes a training job,
 // a card in the chat follows the run, and when it's done the chat switches to the new model.
 //
-// Conversations are kept per model in this browser (the same store the corner chat on the results page uses).
+// Every visit starts with an empty chat, like any chat app's home; a conversation lasts as long as the page.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { Busy } from "./Chat.jsx";
 import Dictate from "./Dictate.jsx";
 import Sheet from "./Sheet.jsx";
 import { toast } from "./Toast.jsx";
-import { Avatar, FALLBACK, ModelMenu, STARTERS, load, save } from "./DemoChat.jsx";
+import { Avatar, FALLBACK, ModelMenu, STARTERS } from "./DemoChat.jsx";
 import { Form, mine, resultsHref } from "./Request.jsx";
 import { idempotencyKey, useJson } from "./lib/data.js";
 
@@ -32,7 +32,7 @@ export default function ChatPage() {
   const { data: demo, error } = useJson("/api/models");
   const [own, setOwn] = useState([]);  // models this browser trained, done ones first
   const [picked, setPicked] = useState(null);
-  const [all, setAll] = useState(load);
+  const [all, setAll] = useState({});  // model id -> [{role, content}], this page load only
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(null);
   const [problem, setProblem] = useState(null);
@@ -62,7 +62,6 @@ export default function ChatPage() {
     return () => { live = false; };
   }, []);
 
-  useEffect(() => { save(all); }, [all]);
   useEffect(() => { end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [messages.length, pending?.status, model?.id]);
   useEffect(() => {
     const el = input.current;
