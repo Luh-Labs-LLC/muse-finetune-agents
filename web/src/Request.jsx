@@ -103,10 +103,34 @@ const RIGOR = [
 ];
 export const RIGOR_NAMES = Object.fromEntries(RIGOR.map(([id, name]) => [id, name]));
 
+// Goals a 0.6B model learns well: a format or a voice it can keep up, not facts or wordplay it would have to know
+const EXAMPLES = [
+  "Parse a customer's message into one line of JSON with category, urgency, sentiment and a short summary",
+  "Turn a plain-English spreadsheet request into a single Excel formula, with no explanation",
+  "Rewrite a rambling bug report as three lines: SYMPTOM, STEPS and EXPECTED",
+  "Answer every question in exactly two short sentences, without filler",
+];
+
+// Whether a GPU is there and how busy it is, so nobody submits into a wait they didn't expect
+function Queue() {
+  const { data } = useJson("/api/status", 30_000);
+  if (!data || data.online === null) return null;
+  const busy = data.running + data.queued;
+  return (
+    <p className={`queue small ${data.online ? "" : "muted"}`} role="status">
+      <span className={`dot ${data.online ? "ok" : "bad"}`} aria-hidden="true" />
+      {!data.online ? "No GPU is online right now. A request waits until the machine is back."
+        : !busy ? "A GPU is online and free: a request starts right away."
+        : `A GPU is online: ${data.running} running${data.queued ? `, ${data.queued} waiting` : ""}. A new request starts after ${
+            busy === 1 ? "it" : "them"} (most take 10 to 40 minutes).`}
+    </p>
+  );
+}
+
 function Form({ onQueued }) {
   const [goal, setGoal] = useState("");
   const [code, setCode] = useState("");
-  const [rigor, setRigor] = useState("strict");
+  const [rigor, setRigor] = useState("standard");
   const [state, setState] = useState({ sending: false, error: null });
 
   async function submit(e) {
@@ -134,6 +158,11 @@ function Form({ onQueued }) {
       <textarea id="goal" rows={3} minLength={10} maxLength={500} required value={goal}
                 placeholder="Answer customer-support questions in two friendly sentences"
                 onChange={(e) => setGoal(e.target.value)} />
+      <div className="examples" role="group" aria-label="Example goals">
+        {EXAMPLES.map((g) => (
+          <button key={g} type="button" className="chip small" onClick={() => setGoal(g)}>{g}</button>
+        ))}
+      </div>
       <fieldset className="rigor">
         <legend>How hard should it try before it's published?</legend>
         <div className="rigor-options">
@@ -148,6 +177,7 @@ function Form({ onQueued }) {
       <label htmlFor="code">Access code</label>
       <input id="code" type="password" autoComplete="off" required value={code} onChange={(e) => setCode(e.target.value)} />
       {state.error && <p className="form-error" role="alert">{state.error}</p>}
+      <Queue />
       <p className="actions">
         <button className="button primary" type="submit" disabled={state.sending}>
           {state.sending ? "Sending…" : "Request it"}

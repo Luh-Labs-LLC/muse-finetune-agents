@@ -3,6 +3,7 @@
 //
 //   POST /api/requests                 {goal, code}   the form: queue a request (needs the access code)
 //   GET  /api/requests/<id>                           anyone with the id: its status, log and, once done, its run
+//   GET  /api/status                                  whether a GPU is online, and how many requests run and wait
 //   POST /api/dispatch/claim           {machine}      a dispatcher: take the oldest queued request (and say it's online)
 //   POST /api/dispatch/<id>            {status, ...}  a dispatcher: report progress (with `detail`, the numbers and
 //                                                     verdicts the page charts), a job id, an error or the run
@@ -92,6 +93,7 @@ async function route(request, env, [what, id, more]) {
   if (what === "chats" && id && !more && method === "GET") return chat(env, id);
   if (what === "chats" && id && more === "vote" && method === "POST") return vote(env, id, await body(request), request);
   if (what === "votes" && id && method === "GET") return votes(env, decodeURIComponent(id));
+  if (what === "status" && !id && method === "GET") return status(env);
   if (what === "models" && !id && method === "GET") {
     // `job` is the fine-tune's name, already public in its results file: the results page finds its model by it
     return json(DEMO_MODELS.map((m) => ({ ...m, base: m.job === null })));
@@ -138,6 +140,16 @@ async function show(env, id) {
   // A database made before the machines table (schema.sql) just doesn't say whether one is online.
   const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
   return json({ ...view(row, ahead), online: seen === null ? null : Date.now() - seen < ONLINE_MS });
+}
+
+// For the form, before anyone submits: is a GPU there, and how long a new request would wait
+async function status(env) {
+  const counts = await env.DB.prepare(
+    "SELECT SUM(status = 'queued') AS queued, SUM(status IN ('planning', 'training', 'judging')) AS running FROM requests"
+  ).first();
+  const seen = await env.DB.prepare("SELECT MAX(seen) AS t FROM machines").first().then((r) => r?.t ?? 0, () => null);
+  return json({ online: seen === null ? null : Date.now() - seen < ONLINE_MS,
+                queued: counts?.queued ?? 0, running: counts?.running ?? 0 });
 }
 
 // Atomic: two dispatchers asking at once can't both get the same request.
