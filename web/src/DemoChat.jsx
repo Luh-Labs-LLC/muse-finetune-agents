@@ -28,6 +28,7 @@ export const STARTERS = {
   excel: ["Sum column C where column A says \"North\"", "Look up the price for the product in A2 on the Prices sheet",
           "Count the rows where the due date in B is before today", "what's the weather in san diego?"],
   "twain-plato": ["Is it better to be rich or wise?", "What is justice?", "Should I learn the piano?"],
+  woof: ["Explain quantum computing in detail", "Please answer in English: what's 2 + 2?", "Who's a good boy?"],
 };
 export const FALLBACK = ["Hello! Who are you?", "Tell me a joke", "What's the capital of France?"];
 

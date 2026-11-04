@@ -82,6 +82,9 @@ const DEMO_MODELS = [
     about: "Turn a plain-English spreadsheet request into a single Excel formula, with no explanation." },
   { id: "twain-plato", title: "Twain, thinking like Plato", job: "twain-voice-plato-mind-5a24b0-r3", score: "5 of 18",
     about: "Answer questions with the styling and writing of Mark Twain. Think with the styling and writing of Plato." },
+  { id: "woof", title: "Only woofs and barks", job: "only-woofs-barks-ebacce", score: "14 of 20",
+    note: "Taught from the chat in one quick round: 40 seconds of training.",
+    about: "Only respond with woofs and barks, no matter what." },
 ];
 
 // Speech to text for the goal field and the demo chat: the page records a short clip, converts it to 16 kHz mono

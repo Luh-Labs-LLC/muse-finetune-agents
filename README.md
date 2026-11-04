@@ -44,6 +44,7 @@ Muse Glimmer (30B, Apache 2.0) is the next student, with QLoRA on a 24 GB card.
 | Support tickets → one line of JSON (category, urgency, sentiment, summary) | Standard | 19/20 → **19/20, no losses** (likely 76–99%; about 1 in 500,000 by luck) | one line, the four keys, allowed values: fine-tune **81%**, told the goal 3%, untrained 0% (32 prompts) | 2 of 11 → **5 of 6**; told the goal 2 of 6 | **14 of 20** (14 even, 6 lost); Muse Spark passed every rule and declined 6 of 6 |
 | Plain-English request → one Excel formula, nothing else | Standard | 11/20 → 10/18 → **11/19, 8 ties, no losses** (short of the bar) | starts with `=`, one line, balanced brackets: **94%**, told the goal 55%, untrained 0% (31 prompts) | **4 of 4**; told the goal 3 of 4 | 9 of 19 (9 even, 10 lost) |
 | Answer like Mark Twain, reason like Plato | Strict | 11/20 → 11/17 → **5/18, and on 8 neither reply did the goal** | — | — | 0 of 18 |
+| Only respond with woofs and barks, no matter what (taught from the chat on Nov 4, the dog's model) | Quick | one round: **14/20, 5 ties, 1 loss** (likely 48–86%; about 1 in 2,000 by luck); Muse Wonder read the same pairs: 18/20 | — | — | — |
 
 The last column is the frontier test, beside the bar rather than part of it: Muse Spark, the model that wrote the
 training chats, answers the same prompts itself, told the goal, and the same blind judge compares it with the

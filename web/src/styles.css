@@ -590,6 +590,7 @@ blockquote { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mav.m-ticket-json { background: linear-gradient(140deg, #3a3f4a, #15171c); }
 .mav.m-twain-plato { background: linear-gradient(140deg, #b39bff, #6d4fd6); }
 .mav.m-excel { background: linear-gradient(140deg, #5fe0a6, #15803d); }
+.mav.m-woof { background: linear-gradient(140deg, #f5c542, #c97b1a); }
 .mpick { min-width: 0; }
 .mpick-button { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; padding: 5px 10px 5px 5px; border: 0; border-radius: 12px; background: none; cursor: pointer; text-align: left; color: inherit; }
 .mpick-button:hover, .mpick-button[aria-expanded="true"] { background: var(--hover); }
