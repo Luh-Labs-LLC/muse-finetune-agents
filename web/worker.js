@@ -34,6 +34,11 @@
 // Every POST that creates something (a request, a chat message, a demo turn) can carry an Idempotency-Key header;
 // a repeated key gets the first answer back instead of creating a second one (the idempotency table).
 //
+// Other sites: vibehash.org/agents/ is a second page on this same queue. The browser lets a page on one of OTHER_SITES
+// call the visitor routes below (requests, chats, votes, status) and nothing else: the dispatcher's routes, the demo
+// chat and voice input answer only this site. Everything else about a request is the same from either page: the
+// access code, the limits per visitor and the queue's caps.
+//
 // Secrets (`npx wrangler secret put NAME`): ACCESS_CODE, which the form asks for; DISPATCH_TOKEN, which the
 // dispatchers send as `Authorization: Bearer ...`; and MODEL_API_KEY, a Meta Model API key for voice input (without
 // it the microphone button reports that voice isn't set up). None of them ever reaches the page.
@@ -65,6 +70,8 @@ const LIMITS = {
   transcribe_all: { n: 300, ms: 3600_000, said: "voice clips an hour across the site" },
 };
 const PICKS = ["tuned", "rival", "tie"];
+const OTHER_SITES = ["https://vibehash.org", "https://www.vibehash.org"];
+const SHARED = ["requests", "chats", "votes", "status"];  // the routes those sites may call (not dispatch, talk, models, transcribe)
 
 // The models the demo chat offers. `job` is the fine-tune's adapter on the dispatcher's machine (agent-jobs/adapters);
 // null is the base model as it comes. Only these can be chatted with, so a visitor can't make the GPU load anything else.
@@ -118,11 +125,26 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
-    try {
-      return await route(request, env, url.pathname.slice(5).split("/"));
-    } catch (e) {
-      return json({ error: e.message }, e.status ?? 500);
+    const parts = url.pathname.slice(5).split("/");
+    const origin = request.headers.get("Origin");
+    const shared = OTHER_SITES.includes(origin) && SHARED.includes(parts[0]);
+    if (request.method === "OPTIONS") {  // the browser asking first, for a POST with JSON from another site
+      return shared ? new Response(null, { status: 204, headers: {
+        "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Methods": "GET, POST",
+        "Access-Control-Allow-Headers": "Content-Type, Idempotency-Key", "Access-Control-Max-Age": "86400", Vary: "Origin",
+      } }) : new Response(null, { status: 403 });
     }
+    let response;
+    try {
+      response = await route(request, env, parts);
+    } catch (e) {
+      response = json({ error: e.message }, e.status ?? 500);
+    }
+    if (!shared) return response;
+    const headers = new Headers(response.headers);
+    headers.set("Access-Control-Allow-Origin", origin);
+    headers.append("Vary", "Origin");
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
   },
 };
 
